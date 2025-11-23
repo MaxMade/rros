@@ -6,7 +6,7 @@
 
 use core::panic::PanicInfo;
 
-use kernel::cpu::HartID;
+use sync::level::Level;
 
 mod config;
 mod kernel;
@@ -20,13 +20,25 @@ fn panic(_info: &PanicInfo) -> ! {
 /// Kernel initialization routine entered by boot processor
 #[no_mangle]
 pub extern "C" fn kernel_init(hart_id: u64, _dtb_ptr: *const u8) -> ! {
-    let _hard_id = HartID::new(hart_id);
+    // Create initialization token
+    // # Safety
+    // The `LevelInitialization` token is dedicated to mark the initialization routine of the
+    // operating system itself. Thus, completly safe to use within `kernel_init`.
+    let level_initialization = unsafe { sync::level::LevelInitialization::create() };
+
+    // Convert hart ID.
+    let hard_id = kernel::cpu::HartID::new(hart_id);
+
+    // Register hart
+    let (logical_id, level_initialization) =
+        kernel::cpu_map::register_hart(hard_id.clone(), level_initialization);
+
     loop {}
 }
 
 /// Kernel initialization routine entered by application processors
 #[no_mangle]
 pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
-    let _hard_id = HartID::new(hart_id);
+    let hard_id = kernel::cpu::HartID::new(hart_id);
     loop {}
 }

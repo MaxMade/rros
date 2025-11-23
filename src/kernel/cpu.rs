@@ -8,7 +8,7 @@ pub struct HartID(u64);
 
 impl HartID {
     /// Create HartID from raw value.
-    pub fn new(value: u64) -> Self {
+    pub const fn new(value: u64) -> Self {
         Self { 0: value }
     }
 }
