@@ -271,7 +271,7 @@ impl Driver for InterruptController {
         token: crate::sync::level::LevelInitialization,
     ) -> Result<LevelInitialization, (DriverError, LevelInitialization)> {
         // Search device tree for node describing ns16550a
-        let device_tree = DeviceTree::get_dt();
+        let (device_tree, token) = DeviceTree::get_dt(token);
         let device = match device_tree.get_node_by_compatible_property("sifive,plic-1.0.0") {
             Some(device) => device,
             None => return Err((DriverError::NonCompatibleDevice, token)),

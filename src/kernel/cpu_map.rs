@@ -52,7 +52,7 @@ static CPU_MAP: InitCell<CPUMap> = InitCell::new();
 /// limit is exceeded, `initialize` will `panic`.
 pub fn initialize(token: LevelInitialization) -> LevelInitialization {
     // Get maximum supported number of CPUs as indicated by device tree.
-    let dt = DeviceTree::get_dt();
+    let (dt, token) = DeviceTree::get_dt(token);
     let max_cpu_num = dt.get_cpu_count();
     if max_cpu_num > config::MAX_CPU_NUM {
         panic!("Maximum number of supported CPUs exceeded!");

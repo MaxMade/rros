@@ -446,7 +446,7 @@ impl Driver for Uart {
         Self: Sized,
     {
         // Search device tree for node describing ns16550a
-        let device_tree = DeviceTree::get_dt();
+        let (device_tree, token) = DeviceTree::get_dt(token);
         let device = match device_tree.get_node_by_compatible_property("ns16550a") {
             Some(device) => device,
             None => return Err((DriverError::NonCompatibleDevice, token)),
