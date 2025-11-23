@@ -6,7 +6,12 @@
 //! - [goldfish.h](https://github.com/torvalds/linux/blob/master/include/linux/goldfish.h)
 //! - [timer-goldfish.h](https://github.com/torvalds/linux/blob/master/include/clocksource/timer-goldfish.h)
 
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering;
+
 use crate::boot::device_tree::dt::DeviceTree;
+use crate::drivers::driver::Driver;
+use crate::drivers::driver::DriverError;
 use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
@@ -19,7 +24,8 @@ use crate::trap::handlers::TrapHandler;
 use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
-use super::driver::{Driver, DriverError};
+/// Global timer counter
+pub static TIMER_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// Global timer instance.
 pub static TIMER: InitCell<GoldfishTimer> = InitCell::new();
@@ -182,8 +188,29 @@ impl TrapHandler for GoldfishTimer {
             .store(RegisterOffset::ClearInterrupt as usize, 1u32)
             .unwrap();
 
+        // Configure alarm
+        config_space
+            .store(
+                RegisterOffset::AlarmHigh as usize,
+                (TIMER_INTERVAL_NS >> 32) as u32,
+            )
+            .unwrap();
+        config_space
+            .store(RegisterOffset::AlarmLow as usize, TIMER_INTERVAL_NS as u32)
+            .unwrap();
+
+        // Configure time
+        config_space
+            .store(RegisterOffset::TimeHigh as usize, 0u32)
+            .unwrap();
+        config_space
+            .store(RegisterOffset::TimeLow as usize, 0u32)
+            .unwrap();
+
         // Unlock driver
         let token = config_space.unlock(token);
+
+        TIMER_COUNT.fetch_add(1, Ordering::Relaxed);
 
         (false, token)
     }
