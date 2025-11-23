@@ -37,19 +37,25 @@ pub trait Level
 where
     Self: Sized,
 {
+    /// Type of upper [`Level`] within the hierarchy.
     type HigherLevel: Level;
+
+    /// Type of upper [`Level`] within the hierarchy.
     type LowerLevel: Level;
 
     /// Create a new `Level` token.
     unsafe fn create() -> Self;
 
+    /// Get an integer-based representation of the level.
     fn level() -> usize;
 
+    /// Change from `HigherLevel` to `LowerLevel` while consuming `HigherLevel`.
     unsafe fn enter(self) -> Self::LowerLevel {
         assert!(Self::level() > Self::LowerLevel::level());
         Self::LowerLevel::create()
     }
 
+    /// Change back from `LowerLevel` to `HigherLevel` while consuming `LowerLevel`.
     unsafe fn leave(self) -> Self::HigherLevel {
         assert!(Self::level() < Self::HigherLevel::level());
         Self::HigherLevel::create()
@@ -209,8 +215,10 @@ where
     LowerLevel: Level,
     Guard: AdapterGuard<HigherLevel, LowerLevel>,
 {
+    /// Create a new [`Adapter`].
     fn new() -> Self;
 
+    /// Change from `HigherLevel` to `LowerLevel` while consuming `HigherLevel`.
     unsafe fn enter(self, level: HigherLevel) -> Guard {
         // Consule level
         let _ = level;
@@ -230,8 +238,10 @@ where
     HigherLevel: Level,
     LowerLevel: Level,
 {
+    /// Create a new [`AdapterGuard`].
     unsafe fn new() -> Self;
 
+    /// Change back from `LowerLevel` to `HigherLevel` while consuming `LowerLevel`.
     unsafe fn leave(self, level: LowerLevel) -> HigherLevel {
         // Consule level
         let _ = level;
