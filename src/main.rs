@@ -96,7 +96,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     tp.write();
 
     // Initialize trap vector
-    let level_initialization = trap::handlers::load_trap_vector(level_initialization);
+    trap::handlers::load_trap_vector();
 
     // Initialize default trap handlers
     let level_initialization = trap::handlers::TrapHandlers::initialize(level_initialization);
@@ -129,12 +129,11 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
         Err((error, _)) => panic!("Unable to initialize global printer: {}!", error),
     };
 
+    // Boot application processors
+    let level_epilgoue = kernel::boot_ap::startup(level_initialization);
+
     printk!(kernel::printer::LogLevel::Info, "Hello World!\n");
 
-    unsafe {
-        kernel::cpu::unmask_all_interrupts();
-        kernel::cpu::enable_interrupts();
-    }
     loop {}
 }
 
@@ -147,6 +146,12 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
     let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
+
+    // Initialize trap vector
+    trap::handlers::load_trap_vector();
+
+    // Initalize fine-grained kernel mapping
+    mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();
 
     loop {}
 }

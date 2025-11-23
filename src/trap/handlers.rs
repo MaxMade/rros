@@ -227,7 +227,7 @@ pub trait TrapHandler: Sync {
 ///
 /// # Caution
 /// This operation must be executed on every hart!
-pub fn load_trap_vector(token: LevelInitialization) -> LevelInitialization {
+pub fn load_trap_vector() {
     /* Set stvec register */
     let mut stvec = STVec::new();
     stvec.set_mode(STVecMode::Direct);
