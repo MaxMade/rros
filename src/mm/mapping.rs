@@ -158,7 +158,7 @@ impl VirtualMemorySystem {
             }
         };
         let v_pt_2 = PageFrameAllocator::phys_to_virt(p_pt_2);
-        let vpn_2 = Self::offset(virt_addr, 1);
+        let vpn_2 = Self::offset(virt_addr, 2);
         let pte_2 = unsafe { v_pt_2.add(vpn_2).as_mut_ptr().as_mut().unwrap() };
 
         // Try to create mapping
@@ -212,7 +212,82 @@ impl VirtualMemorySystem {
         (PhysicalAddress<c_void>, Protection, Mode, LevelMapping),
         (MemoryError, LevelMapping),
     > {
-        todo!();
+        // Get first (root) page table
+        let (p_pt_0, token) = self.root.lock(token);
+        let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
+
+        // Check first page table
+        let vpn_0 = Self::offset(virt_addr, 0);
+        let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+
+        // Check second page table
+        let (p_pt_1, token): (PhysicalAddress<PageTableEntry>, LevelPaging) = match pte_0.is_valid()
+        {
+            true => {
+                // Check entry
+                assert!(pte_0.is_inner_page_table());
+                assert!(pte_0.is_user_accessible() == false);
+
+                (pte_0.get_physical_page(), token)
+            }
+            false => {
+                let token = p_pt_0.unlock(token);
+                return Err((MemoryError::NoSuchAddress, token));
+            }
+        };
+        let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
+        let vpn_1 = Self::offset(virt_addr, 1);
+        let pte_1 = unsafe { v_pt_1.add(vpn_1).as_mut_ptr().as_mut().unwrap() };
+
+        // Check third page table
+        let (p_pt_2, token): (PhysicalAddress<PageTableEntry>, LevelPaging) = match pte_1.is_valid()
+        {
+            true => {
+                // Check entry
+                assert!(pte_1.is_inner_page_table());
+                assert!(pte_1.is_user_accessible() == false);
+
+                (pte_1.get_physical_page(), token)
+            }
+            false => {
+                let token = p_pt_0.unlock(token);
+                return Err((MemoryError::NoSuchAddress, token));
+            }
+        };
+        let v_pt_2 = PageFrameAllocator::phys_to_virt(p_pt_2);
+        let vpn_2 = Self::offset(virt_addr, 2);
+        let pte_2 = unsafe { v_pt_2.add(vpn_2).as_mut_ptr().as_mut().unwrap() };
+
+        // Try to create mapping
+        if !pte_2.is_valid() {
+            let token = p_pt_0.unlock(token);
+            return Err((MemoryError::NoSuchAddress, token));
+        }
+
+        let phys_addr = pte_2.get_physical_page();
+        let protection = match (
+            pte_2.is_readable(),
+            pte_2.is_writable(),
+            pte_2.is_executable(),
+        ) {
+            (true, true, true) => Protection::RWX,
+            (true, true, false) => Protection::RW,
+            (true, false, true) => Protection::RX,
+            (true, false, false) => Protection::R,
+            (false, false, true) => Protection::X,
+            (readable, writable, executable) => panic!(
+                "Invalid memory protection: Readable? {} Writable? {} Executable? {}",
+                readable, writable, executable
+            ),
+        };
+        let mode = match pte_2.is_user_accessible() {
+            true => Mode::User,
+            false => Mode::Kernel,
+        };
+
+        // Unlock mapping
+        let token = p_pt_0.unlock(token);
+        Ok((phys_addr, protection, mode, token))
     }
 
     /// Check if `virt_addr` is readable for kernel-space.
