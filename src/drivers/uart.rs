@@ -25,10 +25,10 @@ enum RegisterOffset {
     /// Interrupt Enable Register.
     ///
     /// # Bit Field
-    /// * Bit 0: RHRI (See [ISRBitOffset](ISRBitOffset))
-    /// * Bit 1: THRI (See [ISRBitOffset](ISRBitOffset))
-    /// * Bit 2: RLSI (See [ISRBitOffset](ISRBitOffset))
-    /// * Bit 3: Mea (See [ISRBitOffset](ISRBitOffset))
+    /// * Bit 0: RHRI (See [ISRBitOffset])
+    /// * Bit 1: THRI (See [ISRBitOffset])
+    /// * Bit 2: RLSI (See [ISRBitOffset])
+    /// * Bit 3: Mea (See [ISRBitOffset])
     /// * Bits [4, 7]: Unused
     IER = 1,
     /// Interrupt Status Register.
@@ -41,9 +41,9 @@ enum RegisterOffset {
     /// Line Control Register.
     ///
     /// # Bit Field
-    /// * Bits [0, 1]: Number of data bits (See [DataBits](DataBits))
-    /// * Bit 2: Number of stop bits (See [StopBits](StopBits)):
-    /// * Bits [3, 5]: Parity mode (See [ParityMode](ParityMode))
+    /// * Bits [0, 1]: Number of data bits (See [DataBits])
+    /// * Bit 2: Number of stop bits (See [StopBits]):
+    /// * Bits [3, 5]: Parity mode (See [ParityMode])
     /// * Bit 6: Break Condition
     /// * Bit 7: DLR Access Enabled.
     LCR = 3,

@@ -1,0 +1,117 @@
+//! Kernel-Abstractions related to trap.
+
+use core::fmt::Display;
+
+/// Interrupt reasons.
+///
+/// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Interrupt {
+    SoftwareInterrupt,
+    TimerInterrupt,
+    ExternalInterrupt,
+    Interrupt(u8),
+}
+
+impl Into<usize> for Interrupt {
+    fn into(self) -> usize {
+        match self {
+            Interrupt::SoftwareInterrupt => 1,
+            Interrupt::TimerInterrupt => 5,
+            Interrupt::ExternalInterrupt => 9,
+            Interrupt::Interrupt(interrupt) => interrupt as usize,
+        }
+    }
+}
+
+impl Display for Interrupt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Interrupt::SoftwareInterrupt => write!(f, "Supervisor software interrupt"),
+            Interrupt::TimerInterrupt => write!(f, "Supervisor timer interrupt"),
+            Interrupt::ExternalInterrupt => write!(f, "Supervisor external interrupt"),
+            Interrupt::Interrupt(interrupt) => write!(f, "Supervisor Interrupt {:x}", interrupt),
+        }
+    }
+}
+
+/// Exception reasons.
+///
+/// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Exception {
+    InstructionMisalignedAddr,
+    InstructionAccessFault,
+    IllegalInstruction,
+    Breakpoint,
+    LoadMisalignedAddr,
+    LoadAccessFault,
+    StoreMisalignedAddr,
+    StoreAccessFault,
+    EnvCallUser,
+    EnvCallSupervisor,
+    InstructionPageFault,
+    LoadPageFault,
+    StorePageFault,
+    Exception(u8),
+}
+
+impl Into<usize> for Exception {
+    fn into(self) -> usize {
+        match self {
+            Exception::InstructionMisalignedAddr => 0,
+            Exception::InstructionAccessFault => 1,
+            Exception::IllegalInstruction => 2,
+            Exception::Breakpoint => 3,
+            Exception::LoadMisalignedAddr => 4,
+            Exception::LoadAccessFault => 5,
+            Exception::StoreMisalignedAddr => 6,
+            Exception::StoreAccessFault => 7,
+            Exception::EnvCallUser => 8,
+            Exception::EnvCallSupervisor => 9,
+            Exception::InstructionPageFault => 12,
+            Exception::LoadPageFault => 13,
+            Exception::StorePageFault => 15,
+            Exception::Exception(exception) => exception as usize,
+        }
+    }
+}
+
+impl Display for Exception {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Exception::InstructionMisalignedAddr => write!(f, "Instruction address misaligned"),
+            Exception::InstructionAccessFault => write!(f, "Instruction access fault"),
+            Exception::IllegalInstruction => write!(f, "Illegal instruction"),
+            Exception::Breakpoint => write!(f, "Breakpoint"),
+            Exception::LoadMisalignedAddr => write!(f, "Load address misasligned"),
+            Exception::LoadAccessFault => write!(f, "Load access fault"),
+            Exception::StoreMisalignedAddr => write!(f, "Store/AMO address misaligned"),
+            Exception::StoreAccessFault => write!(f, "Store/AMO access fault"),
+            Exception::EnvCallUser => write!(f, "Environment call from U-mode"),
+            Exception::EnvCallSupervisor => write!(f, "Environment call from S-mode"),
+            Exception::InstructionPageFault => write!(f, "Instruction page fault"),
+            Exception::LoadPageFault => write!(f, "Load page fault"),
+            Exception::StorePageFault => write!(f, "Store page fault"),
+            Exception::Exception(exception) => write!(f, "Exception {:x}", exception),
+        }
+    }
+}
+
+/// Trap reasons.
+///
+/// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Trap {
+    Interrupt(Interrupt),
+    Exception(Exception),
+}
+
+impl Display for Trap {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Trap::Interrupt(interrupt) => write!(f, "{}", interrupt),
+            Trap::Exception(exception) => write!(f, "{}", exception),
+        }
+    }
+}
