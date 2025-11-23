@@ -342,11 +342,11 @@ pub enum ParserError {
 impl Display for ParserError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            parser_unaligned_access => write!(f, "Misalinged access"),
-            parser_out_of_bounds_access => write!(f, "Out of bounds accecss"),
-            parser_invalid_magic_value => write!(f, "Unexpected magic value"),
-            parser_unsupported_version => write!(f, "Unsupported version"),
-            parser_invalid_structure_block_token => {
+            Self::UnalignedAccess => write!(f, "Misalinged access"),
+            Self::OutOfBoundsAccess => write!(f, "Out of bounds accecss"),
+            Self::InvalidMagicValue => write!(f, "Unexpected magic value"),
+            Self::UnsupportedVersion => write!(f, "Unsupported version"),
+            Self::InvalidStructureBlockToken => {
                 write!(f, "Unexpected strcuture block token")
             }
         }
