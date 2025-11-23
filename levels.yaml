@@ -1,0 +1,41 @@
+---
+Epilogue:
+  value: 7
+  description: |
+    Default execution [`Level`] for `epilogue`s (for more details, see [`TrapHandler`](crate::trap::handlers::TrapHandler))
+
+Driver:
+  value: 6
+  description: |
+    Default [`Level`] for device driver locking
+
+Scheduler:
+  value: 5
+  description: |
+    Required [`Level`] for interacting with the scheduling/task management interface
+
+Memory:
+  value: 4
+  description: |
+    Required [`Level`] for interacting with (generic) memory mangement interfaces
+
+Mapping:
+  value: 3
+  description: |
+    Required [`Level`] for interacting with mapping interface
+
+Paging:
+  value: 2
+  description: |
+    Required [`Level`] for interacting with page allocator
+
+Prologue:
+  value: 1
+  description: |
+    Default execution [`Level`] for `prologue`s (for more details, see [`TrapHandler`](crate::trap::handlers::TrapHandler))
+
+LockedPrologue:
+  value: 0
+  description: |
+    Pseudo-[`Level`] for acquiring a [`IRQTicketLocks`](crate::sync::ticketlock::IRQTicketlock) which should also be safely possible within a `prologue` (for more details, see [`TrapHandler`](crate::trap::handlers::TrapHandler))
+...
