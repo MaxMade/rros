@@ -16,6 +16,8 @@ use crate::sync::level::LevelMemory;
 use crate::sync::level::LevelPrologue;
 use crate::sync::level::LevelScheduler;
 
+use super::level::LevelInitialization;
+
 /// Generic Ticketlock
 pub struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
     data: UnsafeCell<T>,
@@ -69,6 +71,20 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         let token = unsafe { LowerLevel::create() };
 
         return (guard, token);
+    }
+
+    // Acquire lock during initialization.
+    #[inline]
+    pub fn init_lock(
+        &self,
+        token: LevelInitialization,
+    ) -> TicketlockGuard<'_, T, LevelInitialization, LevelInitialization> {
+        // Create ticket lock guard
+        TicketlockGuard {
+            counter: &self.counter,
+            data: unsafe { &mut *self.data.get() },
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
@@ -146,6 +162,12 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level> TicketlockGuard<'a, T, UpperLe
         // design.
         let token = unsafe { UpperLevel::create() };
         return token;
+    }
+
+    /// Release lock while consume `LowerLevel` `token` (and producing `UpperLevel` `token`).
+    #[inline]
+    pub fn init_unlock(self) -> LevelInitialization {
+        unsafe { LevelInitialization::create() }
     }
 }
 
