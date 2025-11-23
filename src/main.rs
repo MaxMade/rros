@@ -8,6 +8,7 @@
 use core::panic::PanicInfo;
 
 use boot::device_tree::dt::DeviceTree;
+use drivers::driver::Driver;
 use sync::level::Level;
 
 mod boot;
@@ -58,6 +59,12 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
 
     // Initialize CPU map
     let level_initialization = kernel::cpu_map::initialize(level_initialization);
+
+    // Initialize serial driver
+    let level_initialization = match drivers::uart::Uart::initiailize(level_initialization) {
+        Ok(token) => token,
+        Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
+    };
 
     loop {}
 }
