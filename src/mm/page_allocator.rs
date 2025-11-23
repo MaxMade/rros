@@ -15,17 +15,17 @@ use crate::sync::ticketlock::TicketlockPaging;
 /// Global [`PageFrameAllocator`] instance.
 pub static PAGE_FRAME_ALLOCATOR: PageFrameAllocator = PageFrameAllocator::new();
 
-const MAX_SIZE: usize = 0x1000000;
+const MAX_SIZE: usize = 0x10000000;
 
-/// Page-Frame Allocator capable of managing at most 16 MiB.
+/// Page-Frame Allocator capable of managing at most 256 MiB.
 pub struct PageFrameAllocator {
-    state: TicketlockPaging<[u64; 64]>,
+    state: TicketlockPaging<[u64; 1024]>,
 }
 
 impl PageFrameAllocator {
     const fn new() -> Self {
         Self {
-            state: TicketlockPaging::new([0; 64]),
+            state: TicketlockPaging::new([0; 1024]),
         }
     }
 
@@ -39,10 +39,10 @@ impl PageFrameAllocator {
         let size = usize::min(MAX_SIZE, compiler::pages_mem_size());
         assert!(size % cpu::page_size() == 0);
 
-        let mut state = [0u64; 64];
+        let mut state = [0u64; 1024];
         for i in 0..size / cpu::page_size() {
             let idx = i / u64::BITS as usize;
-            let offset = i / u64::BITS as usize;
+            let offset = i % u64::BITS as usize;
 
             state[idx] |= 1 << offset;
         }
@@ -51,8 +51,13 @@ impl PageFrameAllocator {
         allocator_state.init_unlock()
     }
 
-    fn __allocate(allocator_state: &mut [u64; 64]) -> Result<PhysicalAddress<c_void>, MemoryError> {
+    fn __allocate(
+        allocator_state: &mut [u64; 1024],
+    ) -> Result<PhysicalAddress<c_void>, MemoryError> {
         for (idx, state) in allocator_state.iter_mut().enumerate() {
+            if *state == 0 {
+                continue;
+            }
             for offset in 0..u64::BITS as usize {
                 if *state & 1 << offset != 0 {
                     // Mark page as occupied
@@ -120,7 +125,7 @@ impl PageFrameAllocator {
         }
     }
 
-    unsafe fn __free(allocator_state: &mut [u64; 64], page: PhysicalAddress<c_void>) {
+    unsafe fn __free(allocator_state: &mut [u64; 1024], page: PhysicalAddress<c_void>) {
         let p_page = page;
         let v_page = Self::phys_to_virt(p_page);
 

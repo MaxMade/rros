@@ -1,18 +1,25 @@
 //! Kernel APIs to create/update/revoke mappings.
 
+use core::arch::asm;
+use core::ffi::c_void;
+
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::compiler;
 use crate::kernel::cpu;
 use crate::kernel::cpu::SATP;
 use crate::mm::error::MemoryError;
+use crate::mm::page_allocator::PageFrameAllocator;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;
-use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging};
+use crate::mm::pte::PageTableEntry;
+use crate::sync::const_cell::ConstCell;
+use crate::sync::init_cell::InitCell;
 use crate::sync::level::{LevelInitialization, LevelMapping, LevelPaging};
 use crate::sync::ticketlock::TicketlockMapping;
-use core::ffi::c_void;
 
-use super::page_allocator::PageFrameAllocator;
-use super::pte::PageTableEntry;
+/// Virtual memory system containing only kernel-addresses (upper `4GiB`).
+pub static KERNEL_VIRTUAL_MEMORY_SYSTEM: InitCell<VirtualMemorySystem> = InitCell::new();
+
+static KERNEL_PTS_1: InitCell<TicketlockMapping<PageTableSubspace>> = InitCell::new();
 
 /// Protection bits.
 ///
@@ -75,122 +82,248 @@ pub enum Mode {
     User,
 }
 
-/// Abstraction of `Sv39: Page-Based 39-bit Virtual-Memory System`.
+/// Page table entries at level 1 for either kernel space (upper `4GiB`) or user space (lower `4GiB`).
+struct PageTableSubspace([PhysicalAddress<PageTableEntry>; 4]);
+unsafe impl Send for PageTableSubspace {}
+unsafe impl Sync for PageTableSubspace {}
+
+/// 39bit page-based Virtual Memory System.
+///
+/// For more details, see `4.4 Sv39: Page-Based 39-bit Virtual-Memory System` of `Volume II: RISC-V Privileged Architectures`.
 pub struct VirtualMemorySystem {
-    root: TicketlockMapping<PhysicalAddress<PageTableEntry>>,
+    root: ConstCell<PhysicalAddress<PageTableEntry>>,
+    user_pts_1: TicketlockMapping<PageTableSubspace>,
+    kernel_pts_1: &'static TicketlockMapping<PageTableSubspace>,
 }
+unsafe impl Send for VirtualMemorySystem {}
+unsafe impl Sync for VirtualMemorySystem {}
 
 impl VirtualMemorySystem {
     /// Apply current mapping by writing [`SATP`] register.
     pub fn load(&self, token: LevelMapping) -> LevelMapping {
-        let (root, token) = self.root.lock(token);
-
         let mut satp = SATP::new();
-        satp.set_root_page_table(*root);
+        satp.set_root_page_table(*self.root);
         satp.write();
-
-        root.unlock(token)
+        token
     }
 
     /// Create initial [`VirtualMemorySystem`] for kernel-space only.
-    pub fn kernel_space(token: LevelInitialization) -> (Self, LevelInitialization) {
+    pub fn initalize(token: LevelInitialization) -> LevelInitialization {
+        // Initialize kernel mapping (PT 0 & PT 1s)
         let (p_pt_0, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let p_pt_0: PhysicalAddress<PageTableEntry> = unsafe { p_pt_0.cast() };
+
+        let (p_pt_1_511, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let p_pt_1_511: PhysicalAddress<PageTableEntry> = unsafe { p_pt_1_511.cast() };
+
+        let (p_pt_1_510, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let p_pt_1_510: PhysicalAddress<PageTableEntry> = unsafe { p_pt_1_510.cast() };
+
+        let (p_pt_1_509, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let p_pt_1_509: PhysicalAddress<PageTableEntry> = unsafe { p_pt_1_509.cast() };
+
+        let (p_pt_1_508, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let p_pt_1_508: PhysicalAddress<PageTableEntry> = unsafe { p_pt_1_508.cast() };
+
+        let v_pt_0: VirtualAddress<PageTableEntry> = PageFrameAllocator::phys_to_virt(p_pt_0);
+
+        let v_pte_0 = unsafe { v_pt_0.add(511).as_mut_ptr().as_mut().unwrap() };
+        v_pte_0.set_physical_page(p_pt_1_511);
+        v_pte_0.mark_as_valid(true);
+
+        let v_pte_0 = unsafe { v_pt_0.add(510).as_mut_ptr().as_mut().unwrap() };
+        v_pte_0.set_physical_page(p_pt_1_510);
+        v_pte_0.mark_as_valid(true);
+
+        let v_pte_0 = unsafe { v_pt_0.add(509).as_mut_ptr().as_mut().unwrap() };
+        v_pte_0.set_physical_page(p_pt_1_509);
+        v_pte_0.mark_as_valid(true);
+
+        let v_pte_0 = unsafe { v_pt_0.add(508).as_mut_ptr().as_mut().unwrap() };
+        v_pte_0.set_physical_page(p_pt_1_508);
+        v_pte_0.mark_as_valid(true);
+
+        // Initialize kernel page tables for level 1
+        let mut kernel_pts = KERNEL_PTS_1.get_mut(token);
+        kernel_pts.get_mut().0[0] = p_pt_1_508;
+        kernel_pts.get_mut().0[1] = p_pt_1_509;
+        kernel_pts.get_mut().0[2] = p_pt_1_510;
+        kernel_pts.get_mut().0[3] = p_pt_1_511;
+        let token = kernel_pts.destroy();
+        let token = unsafe { KERNEL_PTS_1.finanlize(token) };
+
+        // Initialize kernel-only
         let vms = Self {
-            root: TicketlockMapping::new(unsafe { p_pt_0.cast() }),
+            root: ConstCell::new(p_pt_0),
+            user_pts_1: TicketlockMapping::new(PageTableSubspace([PhysicalAddress::null(); 4])),
+            kernel_pts_1: KERNEL_PTS_1.as_ref(),
         };
+
+        let mut kernel_virtual_memory_system = KERNEL_VIRTUAL_MEMORY_SYSTEM.get_mut(token);
+        *kernel_virtual_memory_system.as_mut() = vms;
+        let token = kernel_virtual_memory_system.destroy();
+        let token = unsafe { KERNEL_VIRTUAL_MEMORY_SYSTEM.finanlize(token) };
+
         let mut token = Some(token);
 
         // Map .text segment
-        let text_segment_size =
-            (compiler::text_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        let text_segment_size = compiler::text_segment_size();
+        assert!(text_segment_size % cpu::page_size() == 0);
+        assert!(compiler::text_segment_phys_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::text_segment_phys_end().addr() % cpu::page_size() == 0);
+        assert!(compiler::text_segment_virt_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::text_segment_virt_end().addr() % cpu::page_size() == 0);
         for i in 0..text_segment_size / cpu::page_size() {
             let phys_addr = compiler::text_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::text_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.early_create(
-                    phys_addr,
-                    virt_addr,
-                    Protection::RX,
-                    Mode::Kernel,
-                    token.unwrap(),
-                )
-                .unwrap(),
+                KERNEL_VIRTUAL_MEMORY_SYSTEM
+                    .as_ref()
+                    .early_create(
+                        phys_addr,
+                        virt_addr,
+                        Protection::RX,
+                        Mode::Kernel,
+                        token.unwrap(),
+                    )
+                    .unwrap(),
             );
         }
 
         // Map .rodata segment
-        let rodata_segment_size =
-            (compiler::rodata_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        let rodata_segment_size = compiler::rodata_segment_size();
+        assert!(rodata_segment_size % cpu::page_size() == 0);
+        assert!(compiler::rodata_segment_phys_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::rodata_segment_phys_end().addr() % cpu::page_size() == 0);
+        assert!(compiler::rodata_segment_virt_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::rodata_segment_virt_end().addr() % cpu::page_size() == 0);
         for i in 0..rodata_segment_size / cpu::page_size() {
             let phys_addr = compiler::rodata_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::rodata_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.early_create(
-                    phys_addr,
-                    virt_addr,
-                    Protection::R,
-                    Mode::Kernel,
-                    token.unwrap(),
-                )
-                .unwrap(),
+                KERNEL_VIRTUAL_MEMORY_SYSTEM
+                    .as_ref()
+                    .early_create(
+                        phys_addr,
+                        virt_addr,
+                        Protection::R,
+                        Mode::Kernel,
+                        token.unwrap(),
+                    )
+                    .unwrap(),
             );
         }
 
         // Map .data segment
-        let data_segment_size =
-            (compiler::data_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        let data_segment_size = compiler::data_segment_size();
+        assert!(data_segment_size % cpu::page_size() == 0);
+        assert!(compiler::data_segment_phys_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::data_segment_phys_end().addr() % cpu::page_size() == 0);
+        assert!(compiler::data_segment_virt_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::data_segment_virt_end().addr() % cpu::page_size() == 0);
         for i in 0..data_segment_size / cpu::page_size() {
             let phys_addr = compiler::data_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::data_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.early_create(
-                    phys_addr,
-                    virt_addr,
-                    Protection::RW,
-                    Mode::Kernel,
-                    token.unwrap(),
-                )
-                .unwrap(),
+                KERNEL_VIRTUAL_MEMORY_SYSTEM
+                    .as_ref()
+                    .early_create(
+                        phys_addr,
+                        virt_addr,
+                        Protection::RW,
+                        Mode::Kernel,
+                        token.unwrap(),
+                    )
+                    .unwrap(),
             );
         }
 
         // Map .bss segment
-        let bss_segment_size =
-            (compiler::bss_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        let bss_segment_size = compiler::bss_segment_size();
+        assert!(bss_segment_size % cpu::page_size() == 0);
+        assert!(compiler::bss_segment_phys_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::bss_segment_phys_end().addr() % cpu::page_size() == 0);
+        assert!(compiler::bss_segment_virt_start().addr() % cpu::page_size() == 0);
+        assert!(compiler::bss_segment_virt_end().addr() % cpu::page_size() == 0);
         for i in 0..bss_segment_size / cpu::page_size() {
             let phys_addr = compiler::bss_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::bss_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.early_create(
-                    phys_addr,
-                    virt_addr,
-                    Protection::RW,
-                    Mode::Kernel,
-                    token.unwrap(),
-                )
-                .unwrap(),
+                KERNEL_VIRTUAL_MEMORY_SYSTEM
+                    .as_ref()
+                    .early_create(
+                        phys_addr,
+                        virt_addr,
+                        Protection::RW,
+                        Mode::Kernel,
+                        token.unwrap(),
+                    )
+                    .unwrap(),
             );
         }
 
+        // XXX: Map Page Tables as 128 2MiB Huge-Page
+        const HUGE_PAGE_SIZE: usize = 2 * 1024 * 1024;
+        assert!(compiler::pages_mem_size() % HUGE_PAGE_SIZE == 0);
+        assert!(compiler::pages_mem_phys_start().addr() % HUGE_PAGE_SIZE == 0);
+        assert!(compiler::pages_mem_phys_end().addr() % HUGE_PAGE_SIZE == 0);
+        assert!(compiler::pages_mem_virt_start().addr() % HUGE_PAGE_SIZE == 0);
+        assert!(compiler::pages_mem_virt_end().addr() % HUGE_PAGE_SIZE == 0);
+
+        // Get first (root) page table
+        let p_pt_0 = KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().root.as_ref();
+        let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
+
+        for i in 0..compiler::pages_mem_size() / HUGE_PAGE_SIZE {
+            let virt_addr =
+                unsafe { compiler::pages_mem_virt_start().byte_add(i * HUGE_PAGE_SIZE) };
+            let phys_addr =
+                unsafe { compiler::pages_mem_phys_start().byte_add(i * HUGE_PAGE_SIZE) };
+
+            // Check first page table
+            let vpn_0 = Self::offset(virt_addr, 0);
+            let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+            if !pte_0.is_valid() {
+                panic!("");
+            }
+
+            // Check second page table
+            let (p_pts_1, p_pt_1) = match vpn_0 {
+                508 | 509 | 510 | 511 => {
+                    let kernel_page_tables = KERNEL_VIRTUAL_MEMORY_SYSTEM
+                        .as_ref()
+                        .kernel_pts_1
+                        .init_lock(token.unwrap());
+                    let p_pt_1 = kernel_page_tables.0[vpn_0 - 508];
+                    (kernel_page_tables, p_pt_1)
+                }
+                _ => {
+                    panic!();
+                }
+            };
+            let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
+            let vpn_1 = Self::offset(virt_addr, 1);
+            let pte_1 = unsafe { v_pt_1.add(vpn_1).as_mut_ptr().as_mut().unwrap() };
+            if pte_1.is_valid() {
+                panic!();
+            }
+            pte_1.set_physical_page(phys_addr);
+            pte_1.mark_as_readable(true);
+            pte_1.mark_as_writable(true);
+            pte_1.mark_as_executable(false);
+            pte_1.mark_as_user_accessible(false);
+            pte_1.mark_as_valid(true);
+
+            token = Some(p_pts_1.init_unlock());
+        }
+
         let token = token.unwrap();
-        (vms, token)
+        token
     }
 
-    /// Create a new [`VirtualMemorySystem`] consisting of the root page table.
+    /// Create a new [`VirtualMemorySystem`].
     pub fn new(token: LevelMapping) -> Result<(Self, LevelMapping), (MemoryError, LevelMapping)> {
-        // Enter required level
-        let adapter = AdapterMappingPaging::new();
-        let (guard, token) = adapter.enter(token);
-
-        let (p_pt_0, token) = match PAGE_FRAME_ALLOCATOR.allocate(token) {
-            Ok(result) => result,
-            Err((err, token)) => return Err((err, guard.leave(token))),
-        };
-        let vms = Self {
-            root: TicketlockMapping::new(unsafe { p_pt_0.cast() }),
-        };
-
-        Ok((vms, guard.leave(token)))
+        todo!();
     }
 
     /// Create a new mapping from `virt_addr` to `phys_addr` with specified `protection`/`mode`.
@@ -203,37 +336,38 @@ impl VirtualMemorySystem {
         token: LevelMapping,
     ) -> Result<LevelMapping, (MemoryError, LevelMapping)> {
         // Get first (root) page table
-        let (p_pt_0, token) = self.root.lock(token);
+        let p_pt_0 = self.root.as_ref();
         let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
 
         // Check first page table
         let vpn_0 = Self::offset(virt_addr, 0);
         let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+        if !pte_0.is_valid() {
+            return Err((MemoryError::InvalidAddress, token));
+        }
 
         // Check second page table
-        let (p_pt_1, token) = match pte_0.is_valid() {
-            true => {
-                // Check entry
-                assert!(pte_0.is_inner_page_table());
-                assert!(pte_0.is_user_accessible() == false);
+        let (p_pts_1, p_pt_1, token) = match vpn_0 {
+            0 | 1 | 2 | 3 => {
+                if mode != Mode::User {
+                    return Err((MemoryError::InvalidAddress, token));
+                }
 
-                (pte_0.get_physical_page(), token)
+                let (user_page_tables, token) = self.user_pts_1.lock(token);
+                let p_pt_1 = user_page_tables.0[vpn_0];
+                (user_page_tables, p_pt_1, token)
             }
-            false => {
-                // Allocate a fresh page table entry
-                let (p_pt_1, token): (PhysicalAddress<PageTableEntry>, _) =
-                    match PAGE_FRAME_ALLOCATOR.allocate(token) {
-                        Ok((p_pt_1, token)) => unsafe { (p_pt_1.cast(), token) },
-                        Err((err, token)) => {
-                            return Err((err, p_pt_0.unlock(token)));
-                        }
-                    };
+            508 | 509 | 510 | 511 => {
+                if mode != Mode::Kernel {
+                    return Err((MemoryError::InvalidAddress, token));
+                }
 
-                // Update previous page table
-                pte_0.set_physical_page(p_pt_1);
-                pte_0.mark_as_valid(true);
-
-                (p_pt_1, token)
+                let (kernel_page_tables, token) = self.kernel_pts_1.lock(token);
+                let p_pt_1 = kernel_page_tables.0[vpn_0 - 508];
+                (kernel_page_tables, p_pt_1, token)
+            }
+            _ => {
+                return Err((MemoryError::InvalidAddress, token));
             }
         };
         let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
@@ -255,7 +389,7 @@ impl VirtualMemorySystem {
                     match PAGE_FRAME_ALLOCATOR.allocate(token) {
                         Ok((p_pt_2, token)) => unsafe { (p_pt_2.cast(), token) },
                         Err((err, token)) => {
-                            return Err((err, p_pt_0.unlock(token)));
+                            return Err((err, p_pts_1.unlock(token)));
                         }
                     };
 
@@ -274,7 +408,7 @@ impl VirtualMemorySystem {
         match pte_2.is_valid() {
             true => {
                 // Mapping for given virtual address already exists
-                return Err((MemoryError::AddressAlreadyInUse, p_pt_0.unlock(token)));
+                return Err((MemoryError::AddressAlreadyInUse, p_pts_1.unlock(token)));
             }
             false => {
                 // Update mapping
@@ -288,7 +422,7 @@ impl VirtualMemorySystem {
         }
 
         // Unlock mapping
-        let token = p_pt_0.unlock(token);
+        let token = p_pts_1.unlock(token);
         Ok(token)
     }
 
@@ -302,50 +436,45 @@ impl VirtualMemorySystem {
         mode: Mode,
         token: LevelInitialization,
     ) -> Result<LevelInitialization, (MemoryError, LevelInitialization)> {
-        let mut pages = [None; 2];
-        let token = match PAGE_FRAME_ALLOCATOR.early_allocate(token) {
-            Ok((page, token)) => {
-                pages[0] = Some(page);
-                token
-            }
-            Err((err, token)) => return Err((err, token)),
-        };
-
-        let token = match PAGE_FRAME_ALLOCATOR.early_allocate(token) {
-            Ok((page, token)) => {
-                pages[1] = Some(page);
-                token
-            }
-            Err((err, token)) => return Err((err, token)),
-        };
+        let (mut page, token): (Option<PhysicalAddress<PageTableEntry>>, _) =
+            match PAGE_FRAME_ALLOCATOR.early_allocate(token) {
+                Ok((page, token)) => (Some(unsafe { page.cast() }), token),
+                Err((err, token)) => return Err((err, token)),
+            };
 
         // Get first (root) page table
-        let p_pt_0 = self.root.init_lock(token);
+        let p_pt_0 = self.root.as_ref();
         let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
 
         // Check first page table
         let vpn_0 = Self::offset(virt_addr, 0);
         let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+        if !pte_0.is_valid() {
+            return Err((MemoryError::InvalidAddress, token));
+        }
 
         // Check second page table
-        let p_pt_1 = match pte_0.is_valid() {
-            true => {
-                // Check entry
-                assert!(pte_0.is_inner_page_table());
-                assert!(pte_0.is_user_accessible() == false);
+        let (p_pts_1, p_pt_1) = match vpn_0 {
+            0 | 1 | 2 | 3 => {
+                if mode != Mode::User {
+                    return Err((MemoryError::InvalidAddress, token));
+                }
 
-                pte_0.get_physical_page()
+                let user_page_tables = self.user_pts_1.init_lock(token);
+                let p_pt_1 = user_page_tables.0[vpn_0];
+                (user_page_tables, p_pt_1)
             }
-            false => {
-                // Allocate a fresh page table entry
-                let p_pt_1: PhysicalAddress<PageTableEntry> =
-                    unsafe { pages[0].take().unwrap().cast() };
+            508 | 509 | 510 | 511 => {
+                if mode != Mode::Kernel {
+                    return Err((MemoryError::InvalidAddress, token));
+                }
 
-                // Update previous page table
-                pte_0.set_physical_page(p_pt_1);
-                pte_0.mark_as_valid(true);
-
-                p_pt_1
+                let kernel_page_tables = self.kernel_pts_1.init_lock(token);
+                let p_pt_1 = kernel_page_tables.0[vpn_0 - 508];
+                (kernel_page_tables, p_pt_1)
+            }
+            _ => {
+                return Err((MemoryError::InvalidAddress, token));
             }
         };
         let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
@@ -362,11 +491,8 @@ impl VirtualMemorySystem {
                 pte_1.get_physical_page()
             }
             false => {
-                // Allocate a fresh page table entry
-                let p_pt_2: PhysicalAddress<PageTableEntry> =
-                    unsafe { pages[1].take().unwrap().cast() };
-
                 // Update previous page table
+                let p_pt_2 = page.take().unwrap();
                 pte_1.set_physical_page(p_pt_2);
                 pte_1.mark_as_valid(true);
 
@@ -381,7 +507,7 @@ impl VirtualMemorySystem {
         match pte_2.is_valid() {
             true => {
                 // Mapping for given virtual address already exists
-                return Err((MemoryError::AddressAlreadyInUse, p_pt_0.init_unlock()));
+                return Err((MemoryError::AddressAlreadyInUse, p_pts_1.init_unlock()));
             }
             false => {
                 // Update mapping
@@ -395,17 +521,8 @@ impl VirtualMemorySystem {
         }
 
         // Unlock mapping
-        let token = p_pt_0.init_unlock();
-
-        // Free unused pages
-        let mut token = Some(token);
-        for page in pages {
-            if let Some(page) = page {
-                token = unsafe { Some(PAGE_FRAME_ALLOCATOR.early_free(page, token.unwrap())) };
-            }
-        }
-
-        Ok(token.unwrap())
+        let token = p_pts_1.init_unlock();
+        Ok(token)
     }
 
     /// Create a new (readable/writable for kernel) mapping for `phys_addr` associated driver memory-mapped IO space.
@@ -486,26 +603,30 @@ impl VirtualMemorySystem {
         (MemoryError, LevelMapping),
     > {
         // Get first (root) page table
-        let (p_pt_0, token) = self.root.lock(token);
+        let p_pt_0 = self.root.as_ref();
         let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
 
         // Check first page table
         let vpn_0 = Self::offset(virt_addr, 0);
         let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+        if !pte_0.is_valid() {
+            return Err((MemoryError::InvalidAddress, token));
+        }
 
         // Check second page table
-        let (p_pt_1, token): (PhysicalAddress<PageTableEntry>, LevelPaging) = match pte_0.is_valid()
-        {
-            true => {
-                // Check entry
-                assert!(pte_0.is_inner_page_table());
-                assert!(pte_0.is_user_accessible() == false);
-
-                (pte_0.get_physical_page(), token)
+        let (p_pts_1, p_pt_1, token) = match vpn_0 {
+            0 | 1 | 2 | 3 => {
+                let (user_page_tables, token) = self.user_pts_1.lock(token);
+                let p_pt_1 = user_page_tables.0[vpn_0];
+                (user_page_tables, p_pt_1, token)
             }
-            false => {
-                let token = p_pt_0.unlock(token);
-                return Err((MemoryError::NoSuchAddress, token));
+            508 | 509 | 510 | 511 => {
+                let (kernel_page_tables, token) = self.kernel_pts_1.lock(token);
+                let p_pt_1 = kernel_page_tables.0[vpn_0 - 508];
+                (kernel_page_tables, p_pt_1, token)
+            }
+            _ => {
+                return Err((MemoryError::InvalidAddress, token));
             }
         };
         let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
@@ -523,7 +644,7 @@ impl VirtualMemorySystem {
                 (pte_1.get_physical_page(), token)
             }
             false => {
-                let token = p_pt_0.unlock(token);
+                let token = p_pts_1.unlock(token);
                 return Err((MemoryError::NoSuchAddress, token));
             }
         };
@@ -533,7 +654,7 @@ impl VirtualMemorySystem {
 
         // Try to create mapping
         if !pte_2.is_valid() {
-            let token = p_pt_0.unlock(token);
+            let token = p_pts_1.unlock(token);
             return Err((MemoryError::NoSuchAddress, token));
         }
 
@@ -559,7 +680,7 @@ impl VirtualMemorySystem {
         };
 
         // Unlock mapping
-        let token = p_pt_0.unlock(token);
+        let token = p_pts_1.unlock(token);
         Ok((phys_addr, protection, mode, token))
     }
 

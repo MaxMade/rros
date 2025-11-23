@@ -12,6 +12,9 @@ pub enum MemoryError {
     AddressAlreadyInUse,
     /// No such address.
     NoSuchAddress,
+    /// Invalid address (e.g. Kernel address (upper `4GiB`) with
+    /// [`Mode::User`](crate::mm::mapping::Mode::User).
+    InvalidAddress,
 }
 
 impl Display for MemoryError {
@@ -20,6 +23,7 @@ impl Display for MemoryError {
             MemoryError::OutOfMemory => write!(f, "Out of Memory"),
             MemoryError::AddressAlreadyInUse => write!(f, "Address already in Use"),
             MemoryError::NoSuchAddress => write!(f, "No such Address"),
+            MemoryError::InvalidAddress => write!(f, "Invalid Address"),
         }
     }
 }
