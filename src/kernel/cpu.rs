@@ -107,6 +107,9 @@ impl<L: Level> InterruptFlag<L> {
 
 /// Save interrupt flag and disable supervisor-mode interrupts.
 pub fn save_and_disable_interrupts<L: Level>(token: L) -> (InterruptFlag<L>, LevelPrologue) {
+    // Consume token
+    let _ = token;
+
     let mut sstatus = SStatus::new(0);
     sstatus.read();
     let ret = InterruptFlag {
@@ -127,6 +130,8 @@ pub fn restore_interrupts<L: Level>(flag: InterruptFlag<L>) -> L {
     sstatus.read();
     sstatus.set_sie(flag.enabled);
     sstatus.write();
+
+    // Produce token
     unsafe { L::create() }
 }
 
