@@ -75,31 +75,6 @@ impl TP {
     }
 }
 
-/// Abstraction of `STVal` register.
-///
-/// #See
-/// `4.1.9 Supervisor Trap Value (stval) Register` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct STVal(u64);
-
-impl STVal {
-    /// Create `STVal` from raw value.
-    pub const fn new(value: u64) -> Self {
-        Self { 0: value }
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl Display for STVal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#018x}", self.0)
-    }
-}
-
 /// Abstraction of `SATP` register.
 ///
 /// #See

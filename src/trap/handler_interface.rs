@@ -4,11 +4,11 @@ use crate::arch::cpu::Register;
 use crate::arch::cpu::CSR;
 use crate::kernel::cpu;
 
-use crate::arch::cpu::STVal;
 use crate::arch::scause::SCause;
 use crate::arch::sepc::SEPC;
 use crate::arch::sscratch::SScratch;
 use crate::arch::sstatus::SStatus;
+use crate::arch::stval::STVal;
 use crate::sync::epilogue;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;
