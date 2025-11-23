@@ -153,7 +153,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 
     // Enable interrupts
     unsafe {
-        arch::cpu::unmask_all_interrupts();
+        kernel::cpu::unmask_all_interrupts();
         kernel::cpu::enable_interrupts();
     }
 
@@ -190,7 +190,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Enable interrupts
     unsafe {
-        arch::cpu::unmask_all_interrupts();
+        kernel::cpu::unmask_all_interrupts();
         kernel::cpu::enable_interrupts();
     }
 

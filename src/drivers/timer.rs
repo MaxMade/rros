@@ -3,8 +3,9 @@
 use crate::arch::cpu::CounterEnable;
 use crate::arch::cpu::Time;
 use crate::arch::cpu::TimeCompare;
-use crate::arch::cpu::SIE;
+use crate::arch::cpu::CSR;
 use crate::arch::cpu::SIP;
+use crate::arch::sie::SIE;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::rtc::RTC;
@@ -105,8 +106,10 @@ impl TrapHandler for Timer {
 
     fn prologue(&self, token: LevelPrologue) -> (bool, LevelPrologue) {
         // Disable timer interrupts
-        let mut sie = SIE::new();
+        let mut sie = SIE::new(0);
+        sie.read();
         sie.mark_timer_interrupt_enabled(false);
+        sie.write();
 
         // Clear timer pending bit
         let mut sip = SIP::new();
@@ -125,8 +128,10 @@ impl TrapHandler for Timer {
         time_compare.write();
 
         // Re-enable timer interrupts
-        let mut sie = SIE::new();
+        let mut sie = SIE::new(0);
+        sie.read();
         sie.mark_timer_interrupt_enabled(true);
+        sie.write();
 
         token
     }

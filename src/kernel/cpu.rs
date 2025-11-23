@@ -6,6 +6,7 @@ use core::mem;
 
 use crate::arch::cpu::CSR;
 use crate::arch::cpu::TP;
+use crate::arch::sie::SIE;
 use crate::arch::sstatus::SStatus;
 use crate::arch::stvec::STVec;
 use crate::arch::stvec::STVecMode;
@@ -54,6 +55,22 @@ pub unsafe fn disable_interrupts() {
     sstatus.read();
     sstatus.set_sie(false);
     sstatus.write();
+}
+
+/// Mask all interrupts (in [`SIE`] register).
+pub fn mask_all_interrupts() {
+    let mut sie = SIE::new(0);
+    sie.read();
+    sie.disable_all_interrupts();
+    sie.write();
+}
+
+/// Unmask all interrupts (in [`SIE`] register).
+pub fn unmask_all_interrupts() {
+    let mut sie = SIE::new(0);
+    sie.read();
+    sie.enable_all_interrupts();
+    sie.write();
 }
 
 /// Load address of `__trap_entry` into [`STVec`] regsiter.
