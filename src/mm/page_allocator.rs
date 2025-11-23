@@ -17,8 +17,6 @@ pub static PAGE_FRAME_ALLOCATOR: PageFrameAllocator = PageFrameAllocator::new();
 
 const MAX_SIZE: usize = 0x1000000;
 
-const ADDRESS_SHIFT: u64 = 0xffffffff00000000;
-
 /// Page-Frame Allocator capable of managing at most 16 MiB.
 pub struct PageFrameAllocator {
     state: TicketlockPaging<[u64; 64]>,
@@ -35,7 +33,7 @@ impl PageFrameAllocator {
     pub fn initialize(token: LevelInitialization) -> LevelInitialization {
         let mut allocator_state = PAGE_FRAME_ALLOCATOR.state.init_lock(token);
 
-        let start_addr = Self::virt_to_phys(compiler::pages_mem_start());
+        let start_addr = compiler::pages_mem_phys_start();
         assert!(start_addr.addr() % cpu::page_size() == 0);
 
         let size = usize::min(MAX_SIZE, compiler::pages_mem_size());
@@ -73,13 +71,13 @@ impl PageFrameAllocator {
 
                     // Calculate address of page
                     let page_offset = (u64::BITS as usize * idx + offset) * cpu::page_size();
-                    let mut v_page = compiler::pages_mem_start().add(page_offset);
+                    let mut v_page = compiler::pages_mem_virt_start().add(page_offset);
                     let p_page = Self::virt_to_phys(v_page);
 
                     // Sanity check
                     assert!(v_page.addr() % cpu::page_size() == 0);
-                    assert!(v_page >= compiler::pages_mem_start());
-                    assert!(v_page < compiler::pages_mem_end());
+                    assert!(v_page >= compiler::pages_mem_virt_start());
+                    assert!(v_page < compiler::pages_mem_virt_end());
 
                     // Zero page
                     unsafe { v_page.as_mut_ptr().write_bytes(0, cpu::page_size()) };
@@ -106,11 +104,11 @@ impl PageFrameAllocator {
 
         // Sanity check: Is page valid?
         assert!(v_page.addr() % cpu::page_size() == 0);
-        assert!(v_page >= compiler::pages_mem_start());
-        assert!(v_page < compiler::pages_mem_end());
+        assert!(v_page >= compiler::pages_mem_virt_start());
+        assert!(v_page < compiler::pages_mem_virt_end());
 
         // Calculate offset
-        let page_offset = v_page.addr() - compiler::pages_mem_start().addr();
+        let page_offset = v_page.addr() - compiler::pages_mem_virt_start().addr();
         let idx = (page_offset / cpu::page_size()) / u64::BITS as usize;
         let offset = (page_offset / cpu::page_size()) % u64::BITS as usize;
 
@@ -133,23 +131,31 @@ impl PageFrameAllocator {
     pub fn virt_to_phys<T>(virt_addr: VirtualAddress<T>) -> PhysicalAddress<T> {
         // Sanity check: Refers virt_addr a valid page?
         assert!(virt_addr.addr() % cpu::page_size() == 0);
-        assert!(virt_addr >= unsafe { compiler::pages_mem_start().cast() });
-        assert!(virt_addr < unsafe { compiler::pages_mem_end().cast() });
+        assert!(virt_addr >= unsafe { compiler::pages_mem_virt_start().cast() });
+        assert!(virt_addr < unsafe { compiler::pages_mem_virt_end().cast() });
 
-        unsafe { PhysicalAddress::new(virt_addr.byte_sub(ADDRESS_SHIFT as usize).as_mut_ptr()) }
+        let byte_offset = virt_addr.addr() - compiler::pages_mem_virt_start().addr();
+        unsafe {
+            compiler::pages_mem_phys_start()
+                .byte_add(byte_offset)
+                .cast()
+        }
     }
 
     /// Convert [`PhysicalAddress`] returned by
     /// [`allocate`](crate::mm::page_allocator::PageFrameAllocator::allocate), to a [`VirtualAddress`].
     pub fn phys_to_virt<T>(phys_addr: PhysicalAddress<T>) -> VirtualAddress<T> {
-        let virt_addr =
-            unsafe { VirtualAddress::new(phys_addr.byte_add(ADDRESS_SHIFT as usize).as_mut_ptr()) };
+        // Sanity check: Refers phys_addr a valid page?
+        assert!(phys_addr.addr() % cpu::page_size() == 0);
+        assert!(phys_addr >= unsafe { compiler::pages_mem_phys_start().cast() });
+        assert!(phys_addr < unsafe { compiler::pages_mem_phys_end().cast() });
 
-        // Sanity check: Refers virt_addr a valid page?
-        assert!(virt_addr.addr() % cpu::page_size() == 0);
-        assert!(virt_addr >= unsafe { compiler::pages_mem_start().cast() });
-        assert!(virt_addr < unsafe { compiler::pages_mem_end().cast() });
-        virt_addr
+        let byte_offset = phys_addr.addr() - compiler::pages_mem_phys_start().addr();
+        unsafe {
+            compiler::pages_mem_virt_start()
+                .byte_add(byte_offset)
+                .cast()
+        }
     }
 }
 

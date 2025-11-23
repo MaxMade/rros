@@ -72,9 +72,9 @@ _start:
 	or sp, sp, t1
 
 	// Zero .bss
-	la t0, _bss_start
+	la t0, __virt_bss_start
 	mv t1, t0
-	la t2, _bss_end
+	la t2, __virt_bss_end
 .clear_bss_head:
 	beq t1, t2, .clear_bss_out
 	sb x0, (t1)
