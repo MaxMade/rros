@@ -58,7 +58,9 @@ impl<'a> Write for Formatter<'a> {
         // For the sake over performance, copy data from `s` directly to `self.buffer` without any
         // additional bound checks. By calculating the minimum of `s.len()` and `MSG_BUFFER_SIZE`,
         // there will *never* occur an buffer overflow.
-        unsafe { ptr::copy_nonoverlapping(s.as_ptr(), self.buffer.as_mut_ptr(), len) };
+        unsafe {
+            ptr::copy_nonoverlapping(s.as_ptr(), self.buffer.as_mut_ptr().add(*self.len), len)
+        };
 
         // Save written length
         *self.len += len;
