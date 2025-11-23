@@ -5,6 +5,7 @@ use core::arch::asm;
 use core::error::Error;
 use core::fmt::Display;
 
+use crate::arch;
 use crate::kernel;
 use crate::kernel::address::Address;
 use crate::kernel::sbi::SBIFunctionID::BaseExtension;
@@ -411,7 +412,7 @@ impl From<isize> for SBIHartState {
 /// | `a0`          | `hard_id`      |
 /// | `a1`          | `arg`          |
 pub fn start_hart(
-    hart_id: kernel::cpu::HartID,
+    hart_id: arch::cpu::HartID,
     start_addr: kernel::address::PhysicalAddress<unsafe extern "C" fn(isize, isize)>,
     arg: isize,
 ) -> Result<(), SBIError> {
@@ -436,7 +437,7 @@ pub fn start_hart(
 /// Get the current hart status.
 ///
 /// * `hart_id`: Target hart ID.
-pub fn status_hart(hart_id: kernel::cpu::HartID) -> Result<SBIHartState, SBIError> {
+pub fn status_hart(hart_id: arch::cpu::HartID) -> Result<SBIHartState, SBIError> {
     let hart_id = hart_id.raw();
     match sbi_ecall_1(
         SBIExtensionID::HartStateManagement,

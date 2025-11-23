@@ -5,11 +5,12 @@ use core::fmt::Display;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+use crate::kernel::address::Address;
+use crate::kernel::address::PhysicalAddress;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::mm::pte::PageTableEntry;
-use crate::sync::level::{Level, LevelPrologue};
-
-use super::address::{Address, PhysicalAddress};
+use crate::sync::level::Level;
+use crate::sync::level::LevelPrologue;
 
 /// Get default page size (`4096` bytes)
 pub const fn page_size() -> usize {

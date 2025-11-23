@@ -2,9 +2,9 @@
 //!
 //! For more details, see Section `4.4.1 Addressing and Memory Protection` of `Volume II: RISC-V Privileged Architectures`
 
+use crate::arch::cpu;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
-use crate::kernel::cpu;
 
 const PHYSICAL_PAGE_NUMBER_SIZE: u64 = 1 << 44;
 

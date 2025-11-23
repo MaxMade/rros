@@ -2,9 +2,9 @@
 
 use core::fmt::Display;
 
+use crate::arch::cpu::HartID;
 use crate::boot::device_tree::dt::DeviceTree;
 use crate::config;
-use crate::kernel::cpu::HartID;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 

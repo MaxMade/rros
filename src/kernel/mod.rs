@@ -3,7 +3,6 @@
 pub mod address;
 pub mod boot_ap;
 pub mod compiler;
-pub mod cpu;
 pub mod cpu_map;
 pub mod printer;
 pub mod sbi;

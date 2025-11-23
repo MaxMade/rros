@@ -2,6 +2,7 @@
 
 use core::mem;
 
+use crate::arch::cpu::current;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
@@ -10,8 +11,6 @@ use crate::kernel::cpu_map;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::kernel::sbi;
 use crate::sync::level::LevelInitialization;
-
-use super::cpu::current;
 
 extern "C" {
     fn _start(hart_id: isize, arg: isize);

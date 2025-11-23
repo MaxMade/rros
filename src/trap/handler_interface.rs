@@ -1,13 +1,13 @@
 //! Rusty Trap Entry.
 
-use crate::kernel::cpu;
-use crate::kernel::cpu::Register;
+use crate::arch::cpu;
+use crate::arch::cpu::Register;
 
-use crate::kernel::cpu::SCause;
-use crate::kernel::cpu::SScratch;
-use crate::kernel::cpu::SStatus;
-use crate::kernel::cpu::STVal;
-use crate::kernel::cpu::SEPC;
+use crate::arch::cpu::SCause;
+use crate::arch::cpu::SScratch;
+use crate::arch::cpu::SStatus;
+use crate::arch::cpu::STVal;
+use crate::arch::cpu::SEPC;
 use crate::sync::epilogue;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;

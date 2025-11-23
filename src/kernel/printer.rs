@@ -10,9 +10,9 @@ use core::ptr;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
+use crate::arch::cpu;
 use crate::config;
 use crate::drivers::uart::UART;
-use crate::kernel::cpu;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 

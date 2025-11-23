@@ -13,6 +13,7 @@ use sync::level::Level;
 
 use crate::sync::epilogue;
 
+pub mod arch;
 pub mod boot;
 pub mod config;
 pub mod drivers;
@@ -40,7 +41,7 @@ fn panic(info: &PanicInfo) -> ! {
     }
 
     // Dying...
-    kernel::cpu::die();
+    arch::cpu::die();
 }
 
 fn synchronize(token: sync::level::LevelEpilogue) -> sync::level::LevelEpilogue {
@@ -59,7 +60,7 @@ fn synchronize(token: sync::level::LevelEpilogue) -> sync::level::LevelEpilogue 
 /// Kernel initialization routine entered by boot processor
 #[no_mangle]
 pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -> ! {
-    let hart_id = kernel::cpu::HartID::new(hart_id);
+    let hart_id = arch::cpu::HartID::new(hart_id);
 
     // Create initialization token
     // # Safety
@@ -107,7 +108,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = arch::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     // Initialize trap vector
@@ -152,8 +153,8 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 
     // Enable interrupts
     unsafe {
-        kernel::cpu::unmask_all_interrupts();
-        kernel::cpu::enable_interrupts();
+        arch::cpu::unmask_all_interrupts();
+        arch::cpu::enable_interrupts();
     }
 
     // Synchronize with remaining harts
@@ -162,7 +163,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     printk!(
         kernel::printer::LogLevel::Info,
         "Core {}: Finished initialization\n",
-        kernel::cpu::current()
+        arch::cpu::current()
     );
 
     loop {}
@@ -171,11 +172,11 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 /// Kernel initialization routine entered by application processors
 #[no_mangle]
 pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
-    let hart_id = kernel::cpu::HartID::new(hart_id);
+    let hart_id = arch::cpu::HartID::new(hart_id);
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = arch::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     // Initialize trap vector
@@ -189,8 +190,8 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Enable interrupts
     unsafe {
-        kernel::cpu::unmask_all_interrupts();
-        kernel::cpu::enable_interrupts();
+        arch::cpu::unmask_all_interrupts();
+        arch::cpu::enable_interrupts();
     }
 
     // Synchronize with remaining harts
@@ -199,7 +200,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     printk!(
         kernel::printer::LogLevel::Info,
         "Core {}: Finished initialization\n",
-        kernel::cpu::current()
+        arch::cpu::current()
     );
 
     loop {}

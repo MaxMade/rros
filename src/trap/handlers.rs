@@ -2,9 +2,9 @@
 
 use core::mem;
 
+use crate::arch::cpu::STVec;
+use crate::arch::cpu::STVecMode;
 use crate::drivers::panic::PANIC;
-use crate::kernel::cpu::STVec;
-use crate::kernel::cpu::STVecMode;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;

@@ -1,13 +1,13 @@
 //! Timer using RISC-V `Timer` extension.
 
+use crate::arch::cpu::CounterEnable;
+use crate::arch::cpu::Time;
+use crate::arch::cpu::TimeCompare;
+use crate::arch::cpu::SIE;
+use crate::arch::cpu::SIP;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::rtc::RTC;
-use crate::kernel::cpu::CounterEnable;
-use crate::kernel::cpu::Time;
-use crate::kernel::cpu::TimeCompare;
-use crate::kernel::cpu::SIE;
-use crate::kernel::cpu::SIP;
 use crate::kernel::time::MicroSecond;
 use crate::kernel::time::TimeUnits;
 use crate::sync::init_cell::InitCell;
