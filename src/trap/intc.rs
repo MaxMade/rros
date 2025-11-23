@@ -9,7 +9,7 @@ use core::ffi::c_void;
 use core::mem;
 use core::ptr;
 
-use crate::arch::cpu::ExecutionMode;
+use crate::arch::mode::ExecutionMode;
 use crate::boot::device_tree::dt::DeviceTree;
 use crate::config;
 use crate::drivers::driver::{Driver, DriverError};
