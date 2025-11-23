@@ -26,6 +26,9 @@
 //! └────────────────┘
 //! ```
 
+use core::marker::PhantomData;
+
+/// Trait to abstract a level within the hierarchy.
 pub trait Level
 where
     Self: Sized,
@@ -49,7 +52,10 @@ where
     }
 }
 
-pub struct LevelEpilogue {}
+/// Level Epilogue
+pub struct LevelEpilogue {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelEpilogue {
     type HigherLevel = LevelInvalid;
@@ -57,7 +63,9 @@ impl Level for LevelEpilogue {
     type LowerLevel = LevelDriver;
 
     unsafe fn create() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     fn level() -> usize {
@@ -65,7 +73,10 @@ impl Level for LevelEpilogue {
     }
 }
 
-pub struct LevelDriver {}
+/// Level Driver
+pub struct LevelDriver {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelDriver {
     type HigherLevel = LevelEpilogue;
@@ -73,7 +84,9 @@ impl Level for LevelDriver {
     type LowerLevel = LevelScheduler;
 
     unsafe fn create() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     fn level() -> usize {
@@ -81,7 +94,10 @@ impl Level for LevelDriver {
     }
 }
 
-pub struct LevelScheduler {}
+/// Level Scheduler
+pub struct LevelScheduler {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelScheduler {
     type HigherLevel = LevelDriver;
@@ -89,7 +105,9 @@ impl Level for LevelScheduler {
     type LowerLevel = LevelMemory;
 
     unsafe fn create() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     fn level() -> usize {
@@ -97,7 +115,10 @@ impl Level for LevelScheduler {
     }
 }
 
-pub struct LevelMemory {}
+/// Level Memory
+pub struct LevelMemory {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelMemory {
     type HigherLevel = LevelScheduler;
@@ -105,7 +126,9 @@ impl Level for LevelMemory {
     type LowerLevel = LevelPrologue;
 
     unsafe fn create() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     fn level() -> usize {
@@ -113,7 +136,10 @@ impl Level for LevelMemory {
     }
 }
 
-pub struct LevelPrologue {}
+/// Level Progloue
+pub struct LevelPrologue {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelPrologue {
     type HigherLevel = LevelMemory;
@@ -121,7 +147,9 @@ impl Level for LevelPrologue {
     type LowerLevel = LevelInvalid;
 
     unsafe fn create() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+        }
     }
 
     fn level() -> usize {
@@ -129,7 +157,10 @@ impl Level for LevelPrologue {
     }
 }
 
-pub struct LevelInvalid {}
+/// Invalid level to indicate "end of hierarchy"
+pub struct LevelInvalid {
+    phantom: PhantomData<Self>,
+}
 
 impl Level for LevelInvalid {
     type HigherLevel = LevelInvalid;
@@ -142,5 +173,210 @@ impl Level for LevelInvalid {
 
     fn level() -> usize {
         panic!()
+    }
+}
+
+/// Trait to allow to "skip" layers using convinient adapter.
+pub trait Adapter<HigherLevel, LowerLevel, Guard>
+where
+    Self: Sized,
+    HigherLevel: Level,
+    LowerLevel: Level,
+    Guard: AdapterGuard<HigherLevel, LowerLevel>,
+{
+    fn new() -> Self;
+
+    fn enter(self, level: HigherLevel) -> Guard {
+        // Consule level
+        let _ = level;
+
+        // Sanity check of HigherLevel and LowerLevel
+        assert!(HigherLevel::level() > LowerLevel::level());
+
+        // Create guard
+        unsafe { Guard::new() }
+    }
+}
+
+/// Trait to return form `Adapter::enter`.
+pub trait AdapterGuard<HigherLevel, LowerLevel>
+where
+    Self: Sized,
+    HigherLevel: Level,
+    LowerLevel: Level,
+{
+    unsafe fn new() -> Self;
+
+    fn leave(self, level: LowerLevel) -> HigherLevel {
+        // Consule level
+        let _ = level;
+
+        // Sanity check of HigherLevel and LowerLevel
+        assert!(HigherLevel::level() > LowerLevel::level());
+
+        // Produce level
+        unsafe { HigherLevel::create() }
+    }
+}
+
+/// [`Adapter`] for [`LevelEpilogue`] to [`LevelScheduler`]
+pub struct AdapterEpilogueScheduler {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelEpilogue`] to [`LevelScheduler`]
+pub struct AdapterGuardEpilogueScheduler {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelEpilogue, LevelScheduler, AdapterGuardEpilogueScheduler>
+    for AdapterEpilogueScheduler
+{
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelEpilogue, LevelScheduler> for AdapterGuardEpilogueScheduler {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// [`Adapter`] for [`LevelEpilogue`] to [`LevelMemory`]
+pub struct AdapterEpilogueMemory {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelEpilogue`] to [`LevelMemory`]
+pub struct AdapterGuardEpilogueMemory {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelEpilogue, LevelMemory, AdapterGuardEpilogueMemory> for AdapterEpilogueMemory {
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelEpilogue, LevelMemory> for AdapterGuardEpilogueMemory {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// [`Adapter`] for [`LevelEpilogue`] to [`LevelPrologue`]
+pub struct AdapterEpiloguePrologue {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelEpilogue`] to [`LevelPrologue`]
+pub struct AdapterGuardEpiloguePrologue {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelEpilogue, LevelPrologue, AdapterGuardEpiloguePrologue>
+    for AdapterEpiloguePrologue
+{
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelEpilogue, LevelPrologue> for AdapterGuardEpiloguePrologue {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// [`Adapter`] for [`LevelDriver`] to [`LevelMemory`]
+pub struct AdapterDriverMemory {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelDriver`] to [`LevelMemory`]
+pub struct AdapterGuardDriverMemory {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelDriver, LevelMemory, AdapterGuardDriverMemory> for AdapterDriverMemory {
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelDriver, LevelMemory> for AdapterGuardDriverMemory {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// [`Adapter`] for [`LevelDriver`] to [`LevelPrologue`]
+pub struct AdapterDriverPrologue {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelDriver`] to [`LevelPrologue`]
+pub struct AdapterGuardDriverPrologue {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelDriver, LevelPrologue, AdapterGuardDriverPrologue> for AdapterDriverPrologue {
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelDriver, LevelPrologue> for AdapterGuardDriverPrologue {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// [`Adapter`] for [`LevelScheduler`] to [`LevelPrologue`]
+pub struct AdapterSchedulerPrologue {
+    phantom: PhantomData<Self>,
+}
+
+/// [`AdapterGuard`] for [`LevelScheduler`] to [`LevelPrologue`]
+pub struct AdapterGuardSchedulerPrologue {
+    phantom: PhantomData<Self>,
+}
+
+impl Adapter<LevelScheduler, LevelPrologue, AdapterGuardSchedulerPrologue>
+    for AdapterSchedulerPrologue
+{
+    fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl AdapterGuard<LevelScheduler, LevelPrologue> for AdapterGuardSchedulerPrologue {
+    unsafe fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
     }
 }
