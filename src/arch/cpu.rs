@@ -140,39 +140,6 @@ impl Display for ExecutionMode {
     }
 }
 
-/// Retired-Instruction-Counter Register
-///
-/// #See
-/// Section `4.1.4 Supervisor Timers and Performance Counters` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug)]
-pub struct InstructionRetiredCounter(u64);
-
-impl InstructionRetiredCounter {
-    /// Create new, initialized [`InstructionRetiredCounter`].
-    pub fn new() -> Self {
-        let mut reg = InstructionRetiredCounter(0);
-        reg.read();
-        return reg;
-    }
-
-    /// Update value of [`InstructionRetiredCounter`] Register based on underlying `instret` register.
-    pub fn read(&mut self) {
-        let mut x: u64;
-        unsafe {
-            asm!(
-                "csrr {x}, instret",
-                x = out(reg) x,
-            );
-        }
-        self.0 = x;
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
 /// Cycle-Counter Register
 ///
 /// #See
@@ -254,7 +221,7 @@ impl CounterEnable {
         (self.0 & (1 << 1)) != 0
     }
 
-    /// Check if [`InstructionRetiredCounter`] register is enabled.
+    /// Check if [`InstRet`](crate::arch::inst_ret::InstRet) register is enabled.
     pub fn is_instret_enabled(&self) -> bool {
         (self.0 & (1 << 2)) != 0
     }
@@ -282,7 +249,7 @@ impl CounterEnable {
         self.write();
     }
 
-    /// Enable/disable [`InstructionRetiredCounter`] register.
+    /// Enable/disable [`InstRet`](crate::arch::inst_ret::InstRet) register.
     pub fn set_instret_enabled(&mut self, enabled: bool) {
         match enabled {
             true => self.0 |= 1 << 2,
