@@ -3,9 +3,10 @@
 use core::ffi::c_void;
 
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
-use crate::kernel::cpu;
+use crate::kernel::{compiler, cpu};
 use crate::mm::error::MemoryError;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;
+use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging};
 use crate::sync::level::{LevelMapping, LevelPaging};
 use crate::sync::ticketlock::TicketlockMapping;
 
@@ -79,9 +80,102 @@ pub struct VirtualMemorySystem {
 }
 
 impl VirtualMemorySystem {
+    /// Create initial [`VirtualMemorySystem`] for kernel-space only.
+    pub fn kernel_space(token: LevelMapping) -> (Self, LevelMapping) {
+        let (vms, token) = Self::new(token).unwrap();
+        let mut token = Some(token);
+
+        // Map .text segment
+        let text_segment_size =
+            (compiler::text_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        for i in 0..text_segment_size / cpu::page_size() {
+            let phys_addr = compiler::text_segment_phys_start().add(cpu::page_size() * i);
+            let virt_addr = compiler::text_segment_virt_start().add(cpu::page_size() * i);
+            token = Some(
+                vms.create(
+                    phys_addr,
+                    virt_addr,
+                    Protection::RX,
+                    Mode::Kernel,
+                    token.unwrap(),
+                )
+                .unwrap(),
+            );
+        }
+
+        // Map .rodata segment
+        let rodata_segment_size =
+            (compiler::rodata_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        for i in 0..rodata_segment_size / cpu::page_size() {
+            let phys_addr = compiler::rodata_segment_phys_start().add(cpu::page_size() * i);
+            let virt_addr = compiler::rodata_segment_virt_start().add(cpu::page_size() * i);
+            token = Some(
+                vms.create(
+                    phys_addr,
+                    virt_addr,
+                    Protection::R,
+                    Mode::Kernel,
+                    token.unwrap(),
+                )
+                .unwrap(),
+            );
+        }
+
+        // Map .data segment
+        let data_segment_size =
+            (compiler::data_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        for i in 0..data_segment_size / cpu::page_size() {
+            let phys_addr = compiler::data_segment_phys_start().add(cpu::page_size() * i);
+            let virt_addr = compiler::data_segment_virt_start().add(cpu::page_size() * i);
+            token = Some(
+                vms.create(
+                    phys_addr,
+                    virt_addr,
+                    Protection::RW,
+                    Mode::Kernel,
+                    token.unwrap(),
+                )
+                .unwrap(),
+            );
+        }
+
+        // Map .bss segment
+        let bss_segment_size =
+            (compiler::bss_segment_size() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        for i in 0..bss_segment_size / cpu::page_size() {
+            let phys_addr = compiler::bss_segment_phys_start().add(cpu::page_size() * i);
+            let virt_addr = compiler::bss_segment_virt_start().add(cpu::page_size() * i);
+            token = Some(
+                vms.create(
+                    phys_addr,
+                    virt_addr,
+                    Protection::RW,
+                    Mode::Kernel,
+                    token.unwrap(),
+                )
+                .unwrap(),
+            );
+        }
+
+        let token = token.unwrap();
+        (vms, token)
+    }
+
     /// Create a new [`VirtualMemorySystem`] consisting of the root page table.
     pub fn new(token: LevelMapping) -> Result<(Self, LevelMapping), (MemoryError, LevelMapping)> {
-        todo!();
+        // Enter required level
+        let adapter = AdapterMappingPaging::new();
+        let (guard, token) = adapter.enter(token);
+
+        let (p_pt_0, token) = match PAGE_FRAME_ALLOCATOR.allocate(token) {
+            Ok(result) => result,
+            Err((err, token)) => return Err((err, guard.leave(token))),
+        };
+        let vms = Self {
+            root: TicketlockMapping::new(unsafe { p_pt_0.cast() }),
+        };
+
+        Ok((vms, guard.leave(token)))
     }
 
     /// Create a new mapping from `virt_addr` to `phys_addr` with specified `protection`/`mode`.

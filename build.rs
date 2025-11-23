@@ -303,6 +303,7 @@ where
         level_file,
         "
 /// Level Initialization
+#[derive(Debug)]
 pub struct LevelInitialization {{
     phantom: PhantomData<Self>,
 }}
@@ -330,6 +331,7 @@ impl Level for LevelInitialization {{
         level_file,
         "
 /// Invalid level to indicate \"end of hierarchy\"
+#[derive(Debug)]
 pub struct LevelInvalid {{
     phantom: PhantomData<Self>,
 }}
@@ -364,6 +366,7 @@ impl Level for LevelInvalid {{
             level_file,
             "
 /// {}
+#[derive(Debug)]
 pub struct Level{} {{
     phantom: PhantomData<Self>,
 }}
