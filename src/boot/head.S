@@ -35,6 +35,11 @@ _start:
 	la sp, boot_stack
 	add sp, sp, t0
 
+	// XXX: Fix stack pointer for higher-half mapping
+	li t1, -1
+	slli t1, t1, 32
+	or sp, sp, t1
+
 	// Enable 39-bit paging
 	la t0, pte
 	srai t0, t0, 12
@@ -44,7 +49,13 @@ _start:
 	csrw satp, t0
 
 	// Jump to Rust World
-	j kernel_ap_init
+	la t0, kernel_ap_init
+
+	// XXX: Fix function pointer for higher-half mapping
+	li t1, -1
+	slli t1, t1, 32
+	or t0, t0, t1
+	jalr t0
 
 .setup_stack:
 	// Calculate stack offset
@@ -55,26 +66,49 @@ _start:
 	la sp, boot_stack
 	add sp, sp, t0
 
+	// XXX: Fix stack pointer for higher-half mapping
+	li t1, -1
+	slli t1, t1, 32
+	or sp, sp, t1
+
 // Create identity mapping for lower 4 GiB
 .setup_paging:
 	// Load address of pte
 	la t0, pte
 
-	// Update physical page number (0GiB) and protection bits (+RWX -UG)
+	// Update physical page number (0x0000 00000 0000 0000) and protection bits (+RWX -UG)
 	li t1, 0xf
 	sd t1, (0 * PTE_SIZE)(t0)
 
-	// Update physical page number (1GiB) and protection bits (+RWX -UG)
 	li t1, (0x10000000 | 0xf)
+	// Update physical page number (0x0000 00000 4000 0000) and protection bits (+RWX -UG)
 	sd t1, (1 * PTE_SIZE)(t0)
 
-	// Update physical page number (2GiB) and protection bits (+RWX -UG)
 	li t1, (0x20000000 | 0xf)
+	// Update physical page number (0x0000 00000 b000 0000) and protection bits (+RWX -UG)
 	sd t1, (2 * PTE_SIZE)(t0)
 
-	// Update physical page number (3GiB) and protection bits (+RWX -UG)
 	li t1, (0x30000000 | 0xf)
+	// Update physical page number (0x0000 00000 c000 0000) and protection bits (+RWX -UG)
 	sd t1, (3 * PTE_SIZE)(t0)
+
+	// Update physical page number (0x0000 00000 0000 0000) and protection bits (+RWX -UG)
+	li t2, 508 * PTE_SIZE
+	add t2, t0, t2
+	li t1, 0xf
+	sd t1, (0 * PTE_SIZE)(t2)
+
+	li t1, (0x10000000 | 0xf)
+	// Update physical page number (0x0000 00000 4000 0000) and protection bits (+RWX -UG)
+	sd t1, (1 * PTE_SIZE)(t2)
+
+	li t1, (0x20000000 | 0xf)
+	// Update physical page number (0x0000 00000 b000 0000) and protection bits (+RWX -UG)
+	sd t1, (2 * PTE_SIZE)(t2)
+
+	li t1, (0x30000000 | 0xf)
+	// Update physical page number (0x0000 00000 c000 0000) and protection bits (+RWX -UG)
+	sd t1, (3 * PTE_SIZE)(t2)
 
 	// Calculate: pte / 4096
 	srai t0, t0, 12
@@ -88,7 +122,13 @@ _start:
 	csrw satp, t0
 
 	// Jump to Rust World
-	j kernel_init
+	la t0, kernel_init
+
+	// XXX: Fix function pointer for higher-half mapping
+	li t1, -1
+	slli t1, t1, 32
+	or t0, t0, t1
+	jalr t0
 
 // Endless loop for panicking within early boot
 _startup_panic:

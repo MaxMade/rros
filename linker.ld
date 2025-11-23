@@ -7,49 +7,36 @@ OUTPUT_ARCH( "riscv" )
 
 ENTRY( _start )
 
-MEMORY {
-	ram : ORIGIN = 0x80200000, LENGTH = 126M
-}
-
-PHDRS {
-	text PT_LOAD;
-	data PT_LOAD;
-	bss PT_LOAD;
-}
+ADDRESS_OFFSET = 0xffffffff00000000;
 
 SECTIONS {
+	. = 0x80200000 + ADDRESS_OFFSET;
+
 	. = ALIGN(4096);
-	.text : {
+	.text : AT (ADDR (.text) - ADDRESS_OFFSET) {
 		PROVIDE(_text_start = .);
 		*(.text.init) *(.text .text.*)
 		PROVIDE(_text_end = .);
-	} >ram AT>ram :text
-
+	}
 
 	. = ALIGN(4096);
-	.rodata : {
+	.rodata : AT (ADDR (.rodata) - ADDRESS_OFFSET) {
 		PROVIDE(_rodata_start = .);
 		*(.rodata .rodata.*)
 		PROVIDE(_rodata_end = .);
-	} >ram AT>ram :text
+	}
 
 	. = ALIGN(4096);
-	.data : {
+	.data : AT (ADDR (.data) - ADDRESS_OFFSET) {
 		PROVIDE(_data_start = .);
 		*(.sdata .sdata.*) *(.data .data.*)
 		PROVIDE(_data_end = .);
-	} >ram AT>ram :data
+	}
 
 	. = ALIGN(4096);
-	.bss :{
+	.bss : AT (ADDR (.bss) - ADDRESS_OFFSET) {
 		PROVIDE(_bss_start = .);
 		*(.sbss .sbss.*) *(.bss .bss.*)
 		PROVIDE(_bss_end = .);
-
-		/* (Statically) allocate 64 MiB for allocator */
-		. = ALIGN(4096);
-		PROVIDE(_allocator_start = .);
-		. = . + 0x4000000;
-		PROVIDE(_allocator_end = .);
-	} >ram AT>ram :bss
+	}
 }
