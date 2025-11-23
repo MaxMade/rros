@@ -44,8 +44,6 @@ pub trait TimeUnits:
     + Sub
     + SubAssign
 {
-    /// Create a instance of the corresponding time unit.
-    fn new(time: usize) -> Self;
 }
 
 /// Type for handling seconds.
@@ -79,9 +77,15 @@ impl<const FACTOR: usize> TimeUnit<FACTOR> {
     }
 }
 
-impl<const FACTOR: usize> TimeUnits for TimeUnit<FACTOR> {
-    fn new(time: usize) -> Self {
+impl<const FACTOR: usize> TimeUnit<FACTOR> {
+    /// Create a new [`TimeUnit`].
+    pub const fn new(time: usize) -> Self {
         Self(time)
+    }
+
+    /// Get underlying (raw) value.
+    pub const fn raw(self) -> usize {
+        self.0
     }
 }
 
