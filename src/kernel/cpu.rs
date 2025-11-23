@@ -874,3 +874,36 @@ impl InstructionRetiredCounter {
         self.0
     }
 }
+
+/// Cycle-Counter Register
+///
+/// #See
+/// Section `4.1.4 Supervisor Timers and Performance Counters` of `Volume II: RISC-V Privileged Architectures`
+#[derive(Debug)]
+pub struct CycleCounter(u64);
+
+impl CycleCounter {
+    /// Create new, initialized [`CycleCounter`].
+    pub fn new() -> Self {
+        let mut reg = CycleCounter(0);
+        reg.read();
+        return reg;
+    }
+
+    /// Update value of [`CycleCounter`] register based on underlying `cycle` register.
+    pub fn read(&mut self) {
+        let mut x: u64;
+        unsafe {
+            asm!(
+                "csrr {x}, cycle",
+                x = out(reg) x,
+            );
+        }
+        self.0 = x;
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
