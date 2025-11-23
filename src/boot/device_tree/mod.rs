@@ -1,9 +1,9 @@
 //! Abstraction of the Device Tree.
 
 pub mod dt;
-mod header;
-mod memory_reservation_block;
-mod node;
-mod parser;
-mod property;
-mod structure_block;
+pub mod header;
+pub mod memory_reservation_block;
+pub mod node;
+pub mod parser;
+pub mod property;
+pub mod structure_block;
