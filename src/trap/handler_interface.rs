@@ -7,7 +7,10 @@ use crate::kernel::cpu::SScratch;
 use crate::kernel::cpu::SStatus;
 use crate::kernel::cpu::STVal;
 use crate::kernel::cpu::SEPC;
+use crate::sync::level::Level;
+use crate::sync::level::LevelPrologue;
 use crate::trap::cause::Trap;
+use crate::trap::intc::INTERRUPT_CONTROLLER;
 
 /// Context object passed by low-level (assembly) trap entry.
 pub struct TrapContext([u64; 36]);
@@ -376,6 +379,9 @@ impl TrapContext {
 
 #[no_mangle]
 extern "C" fn trap_handler(state: *mut TrapContext, user: usize) {
+    // Create PROLOGUE token
+    let token = unsafe { LevelPrologue::create() };
+
     // Create reference to register
     let state = unsafe { state.as_mut().unwrap() };
 
@@ -389,12 +395,23 @@ extern "C" fn trap_handler(state: *mut TrapContext, user: usize) {
     let trap = Trap::from(sscause);
 
     // Execute prologue of Trap
-    todo!("Execute prologue of Trap");
+    let epilogue_required = if trap.is_interrupt() {
+        // Get pending interrupt
+        let (interrupt, token) = INTERRUPT_CONTROLLER.source(token);
 
-    // Signal end of interrupt if necessary
-    if trap.is_interrupt() {
-        todo!("Signal end of interrupt");
-    }
+        // Execute prologue
+        let epilogue_required = todo!();
+
+        // Send End-of-Interrupt
+        let token = INTERRUPT_CONTROLLER.end_of_interrupt(interrupt, token);
+
+        epilogue_required
+    } else {
+        // Execute prologue
+        let epilogue_required = todo!();
+        epilogue_required
+    };
+
     // Execute pending epilogues
     todo!("Execute pending epilogues");
 }

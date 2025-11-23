@@ -19,6 +19,7 @@ use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::LevelInitialization;
+use crate::sync::level::LevelPrologue;
 use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
 
@@ -142,6 +143,28 @@ impl PLIC {
             .store(ENABLE_OFFSET + context_offset + byte_offset, mask)
             .unwrap()
     }
+
+    fn claim(&mut self, hart: HartID, mode: ExecutionMode) -> Interrupt {
+        const CLAIM_OFFSET: usize = RegisterOffset::ClaimComplete as usize;
+
+        let hart_id = usize::try_from(hart.raw()).unwrap();
+        let context_offset = match mode {
+            ExecutionMode::Machine => 2 * hart_id * 0x1000,
+            ExecutionMode::Supervisor => 2 * hart_id * 0x1000 + 0x1000,
+            _ => panic!("Unable to set enable bit of PLIC for user mode!"),
+        };
+
+        // Read pending interrupt
+        let interrupt: u32 = self
+            .config_space
+            .load(CLAIM_OFFSET + context_offset)
+            .unwrap();
+        if interrupt == 0 {
+            panic!("No such interrupt to be claimed!");
+        }
+
+        Interrupt::Interrupt(interrupt.into())
+    }
 }
 
 impl InterruptController {
@@ -199,8 +222,25 @@ impl InterruptController {
         plic.init_unlock()
     }
 
+    /// Get pending interrupt.
+    pub fn source(&self, token: LevelPrologue) -> (Interrupt, LevelPrologue) {
+        // Get current hart
+        let hart_id = cpu_map::lookup_hart_id(cpu::current());
+
+        // Lock PLIC
+        let (mut plic, token) = self.0.lock(token);
+
+        // Claim interrupt
+        let interrupt = plic.claim(hart_id, ExecutionMode::Supervisor);
+
+        // Unlock PLIC
+        let token = plic.unlock(token);
+
+        return (interrupt, token);
+    }
+
     /// Send end-of-interrupt signal.
-    pub unsafe fn end_of_interrupt(&self, interrupt: Interrupt) {
+    pub fn end_of_interrupt(&self, interrupt: Interrupt, token: LevelPrologue) -> LevelPrologue {
         todo!();
     }
 }
