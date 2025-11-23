@@ -242,7 +242,7 @@ impl InterruptController {
 
     /// Send end-of-interrupt signal.
     pub fn end_of_interrupt(&self, interrupt: Interrupt, token: LevelPrologue) -> LevelPrologue {
-        const CLAIM_OFFSET: usize = RegisterOffset::ClaimComplete as usize;
+        const CLAIM_COMPLETE_OFFSET: usize = RegisterOffset::ClaimComplete as usize;
 
         // Lock PLIC
         let (mut plic, token) = self.0.lock(token);
@@ -257,7 +257,7 @@ impl InterruptController {
         // Write back interupt to complete
         plic.config_space
             .store(
-                CLAIM_OFFSET + context_offset,
+                CLAIM_COMPLETE_OFFSET + context_offset,
                 usize::try_from(interrupt).unwrap() as u32,
             )
             .unwrap();

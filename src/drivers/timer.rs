@@ -32,8 +32,8 @@ pub static TIMER_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// Global timer instance.
 pub static TIMER: InitCell<GoldfishTimer> = InitCell::new();
 
-/// Timer interfal in nanoseconds (currently 100 ms)
-pub const TIMER_INTERVAL_NS: usize = 100 * 1000;
+/// Timer interfal in nanoseconds (currently 1 second)
+pub const TIMER_INTERVAL_NS: u64 = 1 * 1000 * 1000 * 1000;
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -193,33 +193,35 @@ impl TrapHandler for GoldfishTimer {
         // Lock driver
         let (mut config_space, token) = TIMER.as_ref().config_space.lock(token);
 
-        config_space
-            .store(RegisterOffset::ClearInterrupt as usize, 1u32)
-            .unwrap();
+        // Configure time
+        let time_low = config_space
+            .load::<u32>(RegisterOffset::TimeLow as usize)
+            .unwrap() as u64;
+        let time_high = config_space
+            .load::<u32>(RegisterOffset::TimeHigh as usize)
+            .unwrap() as u64;
+        let time = (time_high << 32) | time_low;
 
         // Configure alarm
+        let alarm = time.wrapping_add(TIMER_INTERVAL_NS);
         config_space
-            .store(
-                RegisterOffset::AlarmHigh as usize,
-                (TIMER_INTERVAL_NS >> 32) as u32,
-            )
+            .store(RegisterOffset::AlarmHigh as usize, (alarm >> 32) as u32)
             .unwrap();
         config_space
-            .store(RegisterOffset::AlarmLow as usize, TIMER_INTERVAL_NS as u32)
+            .store(RegisterOffset::AlarmLow as usize, alarm as u32)
             .unwrap();
 
-        // Configure time
+        // Clear interrupt
         config_space
-            .store(RegisterOffset::TimeHigh as usize, 0u32)
-            .unwrap();
-        config_space
-            .store(RegisterOffset::TimeLow as usize, 0u32)
+            .store(RegisterOffset::ClearInterrupt as usize, 1u32)
             .unwrap();
 
         // Unlock driver
         let token = config_space.unlock(token);
 
         TIMER_COUNT.fetch_add(1, Ordering::Relaxed);
+
+        crate::printk!(crate::kernel::printer::LogLevel::Info, "Hello World!\n");
 
         (false, token)
     }
