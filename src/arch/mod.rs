@@ -5,6 +5,7 @@ pub mod cycle;
 pub mod inst_ret;
 pub mod satp;
 pub mod scause;
+pub mod scounteren;
 pub mod sepc;
 pub mod sie;
 pub mod sip;

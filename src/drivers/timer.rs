@@ -1,8 +1,8 @@
 //! Timer using RISC-V `Timer` extension.
 
-use crate::arch::cpu::CounterEnable;
 use crate::arch::cpu::TimeCompare;
 use crate::arch::cpu::CSR;
+use crate::arch::scounteren::SCounterEn;
 use crate::arch::sie::SIE;
 use crate::arch::sip::SIP;
 use crate::arch::time::Time;
@@ -61,9 +61,10 @@ impl Driver for Timer {
         Self: Sized,
     {
         // Enable time register
-        let mut counter_enable = CounterEnable::new();
-        counter_enable.set_time_enabled(true);
-        counter_enable.write();
+        let mut scounteren = SCounterEn::new(0);
+        scounteren.read();
+        scounteren.set_time_enabled(true);
+        scounteren.write();
 
         // Calibrate stime
         let mut time = Time::new(0);
