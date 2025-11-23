@@ -1,3 +1,5 @@
+//! Generic abstractions of an virtual/physical addresses/pointers.
+
 use core::fmt::Debug;
 use core::fmt::Display;
 use core::fmt::Pointer;
