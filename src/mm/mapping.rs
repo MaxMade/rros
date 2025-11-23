@@ -6,7 +6,7 @@ use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::{compiler, cpu};
 use crate::mm::error::MemoryError;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;
-use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging};
+use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging, LevelInitialization};
 use crate::sync::level::{LevelMapping, LevelPaging};
 use crate::sync::ticketlock::TicketlockMapping;
 
@@ -81,8 +81,11 @@ pub struct VirtualMemorySystem {
 
 impl VirtualMemorySystem {
     /// Create initial [`VirtualMemorySystem`] for kernel-space only.
-    pub fn kernel_space(token: LevelMapping) -> (Self, LevelMapping) {
-        let (vms, token) = Self::new(token).unwrap();
+    pub fn kernel_space(token: LevelInitialization) -> (Self, LevelInitialization) {
+        let (p_pt_0, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
+        let vms = Self {
+            root: TicketlockMapping::new(unsafe { p_pt_0.cast() }),
+        };
         let mut token = Some(token);
 
         // Map .text segment
@@ -92,7 +95,7 @@ impl VirtualMemorySystem {
             let phys_addr = compiler::text_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::text_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.create(
+                vms.early_create(
                     phys_addr,
                     virt_addr,
                     Protection::RX,
@@ -110,7 +113,7 @@ impl VirtualMemorySystem {
             let phys_addr = compiler::rodata_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::rodata_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.create(
+                vms.early_create(
                     phys_addr,
                     virt_addr,
                     Protection::R,
@@ -128,7 +131,7 @@ impl VirtualMemorySystem {
             let phys_addr = compiler::data_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::data_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.create(
+                vms.early_create(
                     phys_addr,
                     virt_addr,
                     Protection::RW,
@@ -146,7 +149,7 @@ impl VirtualMemorySystem {
             let phys_addr = compiler::bss_segment_phys_start().add(cpu::page_size() * i);
             let virt_addr = compiler::bss_segment_virt_start().add(cpu::page_size() * i);
             token = Some(
-                vms.create(
+                vms.early_create(
                     phys_addr,
                     virt_addr,
                     Protection::RW,
@@ -275,6 +278,122 @@ impl VirtualMemorySystem {
         // Unlock mapping
         let token = p_pt_0.unlock(token);
         Ok(token)
+    }
+
+    /// Create a new mapping from `virt_addr` to `phys_addr` with specified `protection`/`mode`
+    /// during initialization.
+    pub fn early_create(
+        &self,
+        phys_addr: PhysicalAddress<c_void>,
+        virt_addr: VirtualAddress<c_void>,
+        protection: Protection,
+        mode: Mode,
+        token: LevelInitialization,
+    ) -> Result<LevelInitialization, (MemoryError, LevelInitialization)> {
+        let mut pages = [None; 2];
+        let token = match PAGE_FRAME_ALLOCATOR.early_allocate(token) {
+            Ok((page, token)) => {
+                pages[0] = Some(page);
+                token
+            }
+            Err((err, token)) => return Err((err, token)),
+        };
+
+        let token = match PAGE_FRAME_ALLOCATOR.early_allocate(token) {
+            Ok((page, token)) => {
+                pages[1] = Some(page);
+                token
+            }
+            Err((err, token)) => return Err((err, token)),
+        };
+
+        // Get first (root) page table
+        let p_pt_0 = self.root.init_lock(token);
+        let v_pt_0 = PageFrameAllocator::phys_to_virt(*p_pt_0);
+
+        // Check first page table
+        let vpn_0 = Self::offset(virt_addr, 0);
+        let pte_0 = unsafe { v_pt_0.add(vpn_0).as_mut_ptr().as_mut().unwrap() };
+
+        // Check second page table
+        let p_pt_1 = match pte_0.is_valid() {
+            true => {
+                // Check entry
+                assert!(pte_0.is_inner_page_table());
+                assert!(pte_0.is_user_accessible() == false);
+
+                pte_0.get_physical_page()
+            }
+            false => {
+                // Allocate a fresh page table entry
+                let p_pt_1: PhysicalAddress<PageTableEntry> =
+                    unsafe { pages[0].take().unwrap().cast() };
+
+                // Update previous page table
+                pte_0.set_physical_page(p_pt_1);
+                pte_0.mark_as_valid(true);
+
+                p_pt_1
+            }
+        };
+        let v_pt_1 = PageFrameAllocator::phys_to_virt(p_pt_1);
+        let vpn_1 = Self::offset(virt_addr, 1);
+        let pte_1 = unsafe { v_pt_1.add(vpn_1).as_mut_ptr().as_mut().unwrap() };
+
+        // Check third page table
+        let p_pt_2 = match pte_1.is_valid() {
+            true => {
+                // Check entry
+                assert!(pte_1.is_inner_page_table());
+                assert!(pte_1.is_user_accessible() == false);
+
+                pte_1.get_physical_page()
+            }
+            false => {
+                // Allocate a fresh page table entry
+                let p_pt_2: PhysicalAddress<PageTableEntry> =
+                    unsafe { pages[1].take().unwrap().cast() };
+
+                // Update previous page table
+                pte_1.set_physical_page(p_pt_2);
+                pte_1.mark_as_valid(true);
+
+                p_pt_2
+            }
+        };
+        let v_pt_2 = PageFrameAllocator::phys_to_virt(p_pt_2);
+        let vpn_2 = Self::offset(virt_addr, 2);
+        let pte_2 = unsafe { v_pt_2.add(vpn_2).as_mut_ptr().as_mut().unwrap() };
+
+        // Try to create mapping
+        match pte_2.is_valid() {
+            true => {
+                // Mapping for given virtual address already exists
+                return Err((MemoryError::AddressAlreadyInUse, p_pt_0.init_unlock()));
+            }
+            false => {
+                // Update mapping
+                pte_2.set_physical_page(phys_addr);
+                pte_2.mark_as_readable(protection.is_readable());
+                pte_2.mark_as_writable(protection.is_writable());
+                pte_2.mark_as_executable(protection.is_executable());
+                pte_2.mark_as_user_accessible(mode == Mode::User);
+                pte_2.mark_as_valid(true);
+            }
+        }
+
+        // Unlock mapping
+        let token = p_pt_0.init_unlock();
+
+        // Free unused pages
+        let mut token = Some(token);
+        for page in pages {
+            if let Some(page) = page {
+                token = unsafe { Some(PAGE_FRAME_ALLOCATOR.early_free(page, token.unwrap())) };
+            }
+        }
+
+        Ok(token.unwrap())
     }
 
     /// Update `protection`/`mode` of a given `virt_addr`.

@@ -51,23 +51,12 @@ impl PageFrameAllocator {
         allocator_state.init_unlock()
     }
 
-    /// Try to allocate a new page
-    pub fn allocate(
-        &self,
-        token: LevelPaging,
-    ) -> Result<(PhysicalAddress<c_void>, LevelPaging), (MemoryError, LevelPaging)> {
-        // Lock allocator
-        let (mut allocator_state, token) = self.state.lock(token);
-
-        // Search for available page
+    fn __allocate(allocator_state: &mut [u64; 64]) -> Result<PhysicalAddress<c_void>, MemoryError> {
         for (idx, state) in allocator_state.iter_mut().enumerate() {
             for offset in 0..u64::BITS as usize {
                 if *state & 1 << offset != 0 {
                     // Mark page as occupied
                     *state &= !(1 << offset);
-
-                    // Unlock allocator
-                    let token = allocator_state.unlock(token);
 
                     // Calculate address of page
                     let page_offset = (u64::BITS as usize * idx + offset) * cpu::page_size();
@@ -82,23 +71,56 @@ impl PageFrameAllocator {
                     // Zero page
                     unsafe { v_page.as_mut_ptr().write_bytes(0, cpu::page_size()) };
 
-                    return Ok((p_page, token));
+                    return Ok(p_page);
                 }
             }
         }
 
-        // Unlock allocator
-        let token = allocator_state.unlock(token);
-        return Err((MemoryError::OutOfMemory, token));
+        Err(MemoryError::OutOfMemory)
     }
 
-    /// Free allocated page
-    ///
-    /// # Safety
-    /// This function is unsafe because undefined behavior can result if ...
-    /// - `ptr` refers to a block of memory currently allocated via this allocator.
-    /// - the references page is still in use.
-    pub unsafe fn free(self, page: PhysicalAddress<c_void>, token: LevelPaging) -> LevelPaging {
+    /// Try to allocate a new page
+    pub fn allocate(
+        &self,
+        token: LevelPaging,
+    ) -> Result<(PhysicalAddress<c_void>, LevelPaging), (MemoryError, LevelPaging)> {
+        // Lock allocator
+        let (mut allocator_state, token) = self.state.lock(token);
+
+        // Search for available page
+        let result = Self::__allocate(&mut allocator_state);
+
+        // Unlock allocator
+        let token = allocator_state.unlock(token);
+
+        match result {
+            Ok(phys_addr) => Ok((phys_addr, token)),
+            Err(err) => Err((err, token)),
+        }
+    }
+
+    /// Try to allocate a new page during initialization
+    pub fn early_allocate(
+        &self,
+        token: LevelInitialization,
+    ) -> Result<(PhysicalAddress<c_void>, LevelInitialization), (MemoryError, LevelInitialization)>
+    {
+        // Lock allocator
+        let mut allocator_state = self.state.init_lock(token);
+
+        // Search for available page
+        let result = Self::__allocate(&mut allocator_state);
+
+        // Unlock allocator
+        let token = allocator_state.init_unlock();
+
+        match result {
+            Ok(phys_addr) => Ok((phys_addr, token)),
+            Err(err) => Err((err, token)),
+        }
+    }
+
+    unsafe fn __free(allocator_state: &mut [u64; 64], page: PhysicalAddress<c_void>) {
         let p_page = page;
         let v_page = Self::phys_to_virt(p_page);
 
@@ -113,16 +135,48 @@ impl PageFrameAllocator {
         let offset = (page_offset / cpu::page_size()) % u64::BITS as usize;
 
         // Lock allocator
-        let (mut allocator_state, token) = self.state.lock(token);
-
         // Sanity check: Was page allocated
         assert!(allocator_state[idx] & 1 << offset == 0);
 
         // Mark page as free
         allocator_state[idx] |= 1 << offset;
+    }
+
+    /// Free allocated page
+    ///
+    /// # Safety
+    /// This function is unsafe because undefined behavior can result if ...
+    /// - `ptr` refers to a block of memory currently allocated via this allocator.
+    /// - the references page is still in use.
+    pub unsafe fn free(self, page: PhysicalAddress<c_void>, token: LevelPaging) -> LevelPaging {
+        // Lock allocator
+        let (mut allocator_state, token) = self.state.lock(token);
+
+        Self::__free(&mut allocator_state, page);
 
         // Unlock allocator
         let token = allocator_state.unlock(token);
+        return token;
+    }
+
+    /// Free allocated page during initialization
+    ///
+    /// # Safety
+    /// This function is unsafe because undefined behavior can result if ...
+    /// - `ptr` refers to a block of memory currently allocated via this allocator.
+    /// - the references page is still in use.
+    pub unsafe fn early_free(
+        &self,
+        page: PhysicalAddress<c_void>,
+        token: LevelInitialization,
+    ) -> LevelInitialization {
+        // Lock allocator
+        let mut allocator_state = self.state.init_lock(token);
+
+        Self::__free(&mut allocator_state, page);
+
+        // Unlock allocator
+        let token = allocator_state.init_unlock();
         return token;
     }
 

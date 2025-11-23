@@ -88,6 +88,9 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     let level_initialization =
         mm::page_allocator::PageFrameAllocator::initialize(level_initialization);
 
+    let (vms, level_initialization) =
+        mm::mapping::VirtualMemorySystem::kernel_space(level_initialization);
+
     // Initialize trap vector
     let level_initialization = trap::handlers::load_trap_vector(level_initialization);
 
