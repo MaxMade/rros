@@ -802,3 +802,42 @@ impl Display for ExecutionMode {
         }
     }
 }
+
+/// Time Register
+///
+/// #See
+/// Section `4.1.4 Supervisor Timers and Performance Counters` of `Volume II: RISC-V Privileged Architectures`
+#[derive(Debug)]
+pub struct Time(u64);
+
+impl Time {
+    /// Create new, initialized [`Time`].
+    pub fn new() -> Self {
+        let mut reg = Time(0);
+        reg.read();
+        return reg;
+    }
+
+    /// Update value of [`Time`] Register based on underlying `time` register.
+    pub fn read(&mut self) {
+        let mut x: u64;
+        unsafe {
+            asm!(
+                "csrr {x}, time",
+                x = out(reg) x,
+            );
+        }
+        self.0 = x;
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl Display for Time {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
