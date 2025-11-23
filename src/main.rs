@@ -15,6 +15,7 @@ pub mod boot;
 pub mod config;
 pub mod drivers;
 pub mod kernel;
+pub mod mm;
 pub mod sync;
 pub mod trap;
 
