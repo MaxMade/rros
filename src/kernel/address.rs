@@ -11,7 +11,7 @@ where
     Self: Pointer + Clone + Copy + Eq + PartialEq + Ord + PartialOrd + From<*mut T> + Into<*mut T>,
 {
     /// Creates a new `Address`.
-    fn new(ptr: *mut T) -> Self;
+    fn create(ptr: *mut T) -> Self;
 
     /// Use `Self` as raw immutable pointer.
     fn as_ptr(&self) -> *const T;
@@ -67,32 +67,32 @@ where
 
     /// Perform bitwise `and` on pointer.
     unsafe fn and(self, rhs: usize) -> Self {
-        Self::new((self.addr() & rhs) as *mut T)
+        Self::create((self.addr() & rhs) as *mut T)
     }
 
     /// Perform bitwise `or` on pointer.
     unsafe fn or(self, rhs: usize) -> Self {
-        Self::new((self.addr() | rhs) as *mut T)
+        Self::create((self.addr() | rhs) as *mut T)
     }
 
     /// Perform bitwise `xor` on pointer.
     unsafe fn xor(self, rhs: usize) -> Self {
-        Self::new((self.addr() ^ rhs) as *mut T)
+        Self::create((self.addr() ^ rhs) as *mut T)
     }
 
     /// Perform bitwise `not` on pointer.
     unsafe fn not(self) -> Self {
-        Self::new(!(self.addr()) as *mut T)
+        Self::create(!(self.addr()) as *mut T)
     }
 
     /// Perform bitwise `right shift` on pointer.
     unsafe fn shr(self, rhs: usize) -> Self {
-        Self::new((self.addr() >> rhs) as *mut T)
+        Self::create((self.addr() >> rhs) as *mut T)
     }
 
     /// Perform `left shift` on pointer.
     unsafe fn shl(self, rhs: usize) -> Self {
-        Self::new(((self.addr()) << rhs) as *mut T)
+        Self::create(((self.addr()) << rhs) as *mut T)
     }
 
     /// Gets the “address” portion of the pointer..
@@ -135,6 +135,16 @@ where
 pub struct VirtualAddress<T> {
     pointer: *mut T,
     phantom: PhantomData<T>,
+}
+
+impl<T> VirtualAddress<T> {
+    /// Creates a new `VirtualAddress`.
+    pub const fn new(pointer: *mut T) -> Self {
+        Self {
+            pointer,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<T> Debug for VirtualAddress<T> {
@@ -202,7 +212,7 @@ impl<T> Into<*mut T> for VirtualAddress<T> {
 }
 
 impl<T> Address<T> for VirtualAddress<T> {
-    fn new(ptr: *mut T) -> Self {
+    fn create(ptr: *mut T) -> Self {
         Self {
             pointer: ptr,
             phantom: PhantomData,
@@ -222,6 +232,16 @@ impl<T> Address<T> for VirtualAddress<T> {
 pub struct PhysicalAddress<T> {
     pointer: *mut T,
     phantom: PhantomData<T>,
+}
+
+impl<T> PhysicalAddress<T> {
+    /// Creates a new `PhysicalAddress`.
+    pub const fn new(pointer: *mut T) -> Self {
+        Self {
+            pointer,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<T> Debug for PhysicalAddress<T> {
@@ -289,7 +309,7 @@ impl<T> Into<*mut T> for PhysicalAddress<T> {
 }
 
 impl<T> Address<T> for PhysicalAddress<T> {
-    fn new(ptr: *mut T) -> Self {
+    fn create(ptr: *mut T) -> Self {
         Self {
             pointer: ptr,
             phantom: PhantomData,

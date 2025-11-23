@@ -4,6 +4,9 @@ use crate::boot::device_tree::parser::Parser;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 
+use crate::boot::device_tree::node::Node;
+use crate::boot::device_tree::property::PropertyValue;
+
 static DEVICE_TREE: InitCell<DeviceTree> = InitCell::new();
 
 #[derive(Debug)]
@@ -56,5 +59,20 @@ impl DeviceTree {
             .node_iter()
             .filter(|node| node.name().starts_with("cpu@"))
             .count()
+    }
+
+    /// Get node by matching `compatible` property
+    pub fn get_node_by_compatible_property(&self, compatible: &str) -> Option<Node> {
+        for node in self.parser.node_iter() {
+            if let Some(property) = node.property_iter().find(|p| p.name == "compatible") {
+                if let PropertyValue::String(value) = property.get_value() {
+                    if value == compatible {
+                        return Some(node);
+                    }
+                }
+            }
+        }
+
+        return None;
     }
 }

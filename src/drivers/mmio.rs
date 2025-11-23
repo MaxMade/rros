@@ -1,5 +1,6 @@
 //! Helpers for *M*emory-*M*apped-*IO*.
 use crate::kernel::address;
+use crate::kernel::address::Address;
 
 use core::error;
 use core::fmt;
@@ -28,7 +29,7 @@ impl MMIOSpace {
 
         /* Perform access */
         unsafe {
-            let ptr: address::VirtualAddress<T> = self.addr.add_byte(offset).cast();
+            let ptr: address::VirtualAddress<T> = self.addr.byte_add(offset).cast();
             let element = ptr.as_ptr().read_volatile();
             return Ok(element);
         }
@@ -46,7 +47,7 @@ impl MMIOSpace {
 
         /* Perform access */
         unsafe {
-            let ptr: address::VirtualAddress<T> = self.addr.add_byte(offset).cast();
+            let mut ptr: address::VirtualAddress<T> = self.addr.byte_add(offset).cast();
             ptr.as_mut_ptr().write_volatile(element);
             return Ok(());
         }
@@ -59,6 +60,10 @@ pub enum MMIOSpaceError {
     /// Out-of-bounds access.
     OutOfBoundsAccess,
 }
+
+unsafe impl Sync for MMIOSpace {}
+
+unsafe impl Send for MMIOSpace {}
 
 impl fmt::Display for MMIOSpaceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
