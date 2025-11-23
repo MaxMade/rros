@@ -6,6 +6,7 @@
 //! - [goldfish.h](https://github.com/torvalds/linux/blob/master/include/linux/goldfish.h)
 //! - [timer-goldfish.h](https://github.com/torvalds/linux/blob/master/include/clocksource/timer-goldfish.h)
 
+use core::ffi::c_void;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
@@ -13,8 +14,9 @@ use crate::boot::device_tree::dt::DeviceTree;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::mmio::MMIOSpace;
+use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
-use crate::kernel::address::VirtualAddress;
+use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::IRQTicketlock;
@@ -22,7 +24,6 @@ use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 use crate::trap::handlers::TrapHandler;
 use crate::trap::handlers::TrapHandlers;
-use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
 /// Global timer counter
@@ -90,11 +91,20 @@ impl Driver for GoldfishTimer {
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
-        let _phys_addres = PhysicalAddress::from(raw_address as *mut u8);
+        let phys_address = PhysicalAddress::from(raw_address as *mut c_void);
         let size = raw_length;
 
-        // TODO: Convert physical address to virtual address
-        let virt_address = VirtualAddress::from(raw_address as *mut u8);
+        // Convert physical address to virtual address
+        let (virt_address, token) =
+            match KERNEL_VIRTUAL_MEMORY_SYSTEM
+                .as_ref()
+                .early_create_dev(phys_address, size, token)
+            {
+                Ok((virt_address, token)) => (unsafe { virt_address.cast() }, token),
+                Err((_, token)) => {
+                    return Err((DriverError::NoDataAvailable, token));
+                }
+            };
 
         // Create configuration space
         let mmio_space = unsafe { MMIOSpace::new(virt_address, size) };

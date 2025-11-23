@@ -5,6 +5,7 @@
 //! Considerations](https://mth.st/blog/riscv-qemu/AN-491.pdf)
 //! - [(RISCV) RISC-V System, Booting, and
 //! Interrupts](https://marz.utk.edu/my-courses/cosc562/riscv/)
+use core::ffi::c_void;
 use core::ptr;
 use core::sync::atomic::AtomicU16;
 use core::sync::atomic::Ordering;
@@ -17,6 +18,7 @@ use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 
 use crate::drivers::driver::DriverError;
+use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::IRQTicketlock;
@@ -470,11 +472,20 @@ impl Driver for Uart {
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
-        let _phys_addres = PhysicalAddress::from(raw_address as *mut u8);
+        let phys_address = PhysicalAddress::from(raw_address as *mut c_void);
         let size = raw_length;
 
-        // TODO: Convert physical address to virtual address
-        let virt_address = VirtualAddress::from(raw_address as *mut u8);
+        // Convert physical address to virtual address
+        let (virt_address, token) =
+            match KERNEL_VIRTUAL_MEMORY_SYSTEM
+                .as_ref()
+                .early_create_dev(phys_address, size, token)
+            {
+                Ok((virt_address, token)) => (unsafe { virt_address.cast() }, token),
+                Err((_, token)) => {
+                    return Err((DriverError::NoDataAvailable, token));
+                }
+            };
 
         // Read clock frequency
         let clock_freq = match device

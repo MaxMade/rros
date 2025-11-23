@@ -1,6 +1,5 @@
 //! Kernel APIs to create/update/revoke mappings.
 
-use core::arch::asm;
 use core::ffi::c_void;
 
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};

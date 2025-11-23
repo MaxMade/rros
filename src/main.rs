@@ -125,6 +125,12 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
         Err((error, _)) => panic!("Unable to initialize global printer: {}!", error),
     };
 
+    unsafe {
+        mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM
+            .as_ref()
+            .load(sync::level::LevelMapping::create())
+    };
+
     printk!(kernel::printer::LogLevel::Info, "Hello World!\n");
 
     unsafe {
