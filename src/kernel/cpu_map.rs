@@ -34,6 +34,7 @@ impl Display for LogicalCPUID {
     }
 }
 
+/// Lookup map between [`LogicalCPUID`]s and [`HartID`]s.
 #[derive(Debug)]
 pub struct CPUMap {
     idx: usize,
