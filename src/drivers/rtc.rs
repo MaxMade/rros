@@ -56,13 +56,7 @@ pub struct RealTimeClock {
 }
 
 impl RealTimeClock {
-    /// Wait for a given time period.
-    pub fn wait(&self, time: NanoSecond, token: LevelDriver) -> LevelDriver {
-        // Convert time to NanoSecond
-
-        // Lock driver
-        let (config_space, token) = self.config_space.lock(token);
-
+    fn __wait(config_space: &MMIOSpace, time: NanoSecond) {
         // Calculate expected time stamp
         let time_low: u32 = config_space.load(RegisterOffset::TimeLow as usize).unwrap();
         let time_high: u32 = config_space
@@ -91,6 +85,26 @@ impl RealTimeClock {
                 }
             }
         }
+    }
+
+    /// Wait for a given time period during initialization.
+    pub fn early_wait(&self, time: NanoSecond, token: LevelInitialization) -> LevelInitialization {
+        // Lock driver
+        let config_space = self.config_space.init_lock(token);
+
+        Self::__wait(&config_space, time);
+
+        // Unlock driver
+        let token = config_space.init_unlock();
+        token
+    }
+
+    /// Wait for a given time period.
+    pub fn wait(&self, time: NanoSecond, token: LevelDriver) -> LevelDriver {
+        // Lock driver
+        let (config_space, token) = self.config_space.lock(token);
+
+        Self::__wait(&config_space, time);
 
         // Unlock driver
         let token = config_space.unlock(token);
