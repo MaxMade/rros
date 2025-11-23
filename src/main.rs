@@ -41,6 +41,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     // The provided pointer to the device tree blob is valid and thus safe to use.
     let (device_tree, level_initialization) =
         unsafe { DeviceTree::initialize(dtb_ptr, level_initialization) };
+    assert!(device_tree.get_cpu_count() < config::MAX_CPU_NUM);
 
     // Check availability of OpenSBI by querying specification version
     if let Err(error) = kernel::sbi::specification_version() {
