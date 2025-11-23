@@ -102,13 +102,21 @@ fn sbi_ecall_3(
 /// Section `Binary Encoding` of `RISC-V Supervisor Binary Interface Specification`
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SBIError {
+    /// Failed for unknown reason.
     Failed = -1,
+    /// Unsupported SBI extension ID (**EID**) or SBI function ID (**FID**).
     NotSupported = -2,
+    /// Invalid argument.
     InvalidParam = -3,
+    /// Denied request.
     Denied = -4,
+    /// Invalid address.
     InvalidAddress = -5,
+    /// Hart was already started (only for [`start_hart`]).
     AlreadyAvailable = -6,
+    /// Hart was already started (only for `sbi_pmu_counter_start` - currently *not implemented*).
     AlreadyStarted = -7,
+    /// Hart was already started (only for `sbi_pmu_counter_stop` - currently *not implemented*).
     AlreadyStopped = -8,
 }
 
@@ -192,7 +200,10 @@ impl From<SBIExtensionID> for isize {
 /// Section `Chapter 4. Base Extension (EID #0x10)` of `RISC-V Supervisor Binary Interface Specification`
 #[derive(Debug, Copy, Clone)]
 pub enum SBIFunctionID {
+    /// Functionality for probing which SBI extensions are available and for querying the version
+    /// of the SBI.
     BaseExtension(SBIBaseFunctionID),
+    /// Functionality for allowing the supervisor-mode software to request a hart state change.
     HartStateManagementExtension(SBIHSMFunctionID),
 }
 
@@ -337,7 +348,7 @@ pub fn probe_extension(eid: SBIExtensionID) -> Result<bool, SBIError> {
 pub enum SBIHartState {
     ///The hart is physically powered-up and executing normally.
     Started = 0,
-    // The hart is not executing in supervisor-mode or any lower privilege mode.
+    /// The hart is not executing in supervisor-mode or any lower privilege mode.
     Stopped = 1,
     /// Some other hart has requested to start (or power-up) the hart from the STOPPED state.
     StartPending = 2,
