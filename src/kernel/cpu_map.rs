@@ -59,7 +59,7 @@ pub fn initialize(token: LevelInitialization) -> LevelInitialization {
     }
 
     // Initialzie CPU_MAP with sane defaults
-    let (cpu_map, token) = CPU_MAP.as_mut(token);
+    let mut cpu_map = CPU_MAP.get_mut(token);
     cpu_map.idx = 0;
 
     // Try to lookup associated hart ID using SBI.
@@ -74,7 +74,8 @@ pub fn initialize(token: LevelInitialization) -> LevelInitialization {
         match sbi::status_hart(hart_id) {
             Ok(_) => {
                 /* Identified hart: Update map */
-                cpu_map.map[cpu_map.idx] = hart_id;
+                let idx = cpu_map.idx;
+                cpu_map.map[idx] = hart_id;
 
                 /* Increment number of identified harts */
                 cpu_map.idx += 1;
@@ -89,6 +90,7 @@ pub fn initialize(token: LevelInitialization) -> LevelInitialization {
     //
     // # Safety
     // Initialization is done at this point, thus it is safe to make CPU_MAP read-only.
+    let token = cpu_map.destroy();
     let token = unsafe { CPU_MAP.finanlize(token) };
 
     token

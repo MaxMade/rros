@@ -38,8 +38,9 @@ impl DeviceTree {
         };
 
         // Update DEVICE_TREE
-        let (device_tree, token) = DEVICE_TREE.as_mut(token);
+        let mut device_tree = DEVICE_TREE.get_mut(token);
         *device_tree = DeviceTree { parser };
+        let token = device_tree.destroy();
 
         // Finalize InitCell
         // # Safety

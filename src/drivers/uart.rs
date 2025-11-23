@@ -23,6 +23,7 @@ use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 use crate::trap::handlers::TrapHandler;
+use crate::trap::handlers::TrapHandlers;
 use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
@@ -452,21 +453,20 @@ impl Driver for Uart {
         };
 
         // Get locked driver
-        let (mut uart, token) = UART.as_mut(token);
-        let mut driver = uart.locked_ns1655a.init_lock(token);
+        let mut uart = UART.get_mut(token);
 
         // Get address and size of configuration space
         let reg_property = match device.property_iter().filter(|p| p.name == "reg").next() {
             Some(reg_property) => reg_property,
             None => {
-                let token = driver.init_unlock();
+                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
         let (raw_address, raw_length) = match reg_property.into_addr_length_iter().next() {
             Some((raw_address, raw_length)) => (raw_address, raw_length),
             None => {
-                let token = driver.init_unlock();
+                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -476,10 +476,6 @@ impl Driver for Uart {
         // TODO: Convert physical address to virtual address
         let virt_address = VirtualAddress::from(raw_address as *mut u8);
 
-        // Create configuration space
-        let config_space = unsafe { MMIOSpace::new(virt_address, size) };
-        driver.config_space = config_space;
-
         // Read clock frequency
         let clock_freq = match device
             .property_iter()
@@ -488,7 +484,7 @@ impl Driver for Uart {
         {
             Some(clock_freq) => clock_freq,
             None => {
-                let token = driver.init_unlock();
+                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -500,7 +496,7 @@ impl Driver for Uart {
                 clock_freq as usize
             }
             _ => {
-                let token = driver.init_unlock();
+                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -514,7 +510,7 @@ impl Driver for Uart {
         {
             Some(interrupts) => interrupts,
             None => {
-                let token = driver.init_unlock();
+                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -525,6 +521,11 @@ impl Driver for Uart {
         let interrupt = Interrupt::Interrupt(u64::from(interrupt));
         uart.interrupt = interrupt;
         assert!(interrupts.next().is_none());
+
+        // Create configuration space
+        let driver = uart.locked_ns1655a.get_mut();
+        let config_space = unsafe { MMIOSpace::new(virt_address, size) };
+        driver.config_space = config_space;
 
         // Disable all interrupts
         driver.disable_rhri();
@@ -542,19 +543,17 @@ impl Driver for Uart {
         driver.enbale_rhri();
 
         // Unlock driver
-        let token = driver.init_unlock();
+        let token = uart.destroy();
+
+        // Finalize initialization
+        let token = unsafe { UART.finanlize(token) };
 
         // Configure interrupt controller
         let token = INTERRUPT_CONTROLLER.configure(interrupt, token);
         let token = INTERRUPT_CONTROLLER.unmask(interrupt, token);
 
         // Register handler
-        let (trap_handlers, token) = TRAP_HANDLERS.as_mut(token);
-        let (uart, token) = UART.as_mut(token);
-        let token = trap_handlers.register(Trap::Interrupt(interrupt), uart, token);
-
-        // Finalize initialization
-        let token = unsafe { UART.finanlize(token) };
+        let token = TrapHandlers::register(Trap::Interrupt(interrupt), UART.as_ref(), token);
 
         return Ok(token);
     }

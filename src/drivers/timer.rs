@@ -21,6 +21,7 @@ use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 use crate::trap::handlers::TrapHandler;
+use crate::trap::handlers::TrapHandlers;
 use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
@@ -117,14 +118,14 @@ impl Driver for GoldfishTimer {
         assert!(interrupts.next().is_none());
 
         // Get locked driver
-        let (uart, token) = TIMER.as_mut(token);
-        let mut config_space = uart.config_space.init_lock(token);
-
-        // Update config space
-        *config_space = mmio_space;
+        let mut uart = TIMER.get_mut(token);
 
         // Write interrupt configuration
         uart.interrupt = interrupt;
+
+        // Update config space
+        let config_space = uart.config_space.get_mut();
+        *config_space = mmio_space;
 
         // Configure alarm
         config_space
@@ -151,19 +152,17 @@ impl Driver for GoldfishTimer {
             .unwrap();
 
         // Unlock driver
-        let token = config_space.init_unlock();
+        let token = uart.destroy();
+
+        // Finalize initialization
+        let token = unsafe { TIMER.finanlize(token) };
 
         // Configure interrupt controller
         let token = INTERRUPT_CONTROLLER.configure(interrupt, token);
         let token = INTERRUPT_CONTROLLER.unmask(interrupt, token);
 
         // Register handler
-        let (trap_handlers, token) = TRAP_HANDLERS.as_mut(token);
-        let (uart, token) = TIMER.as_mut(token);
-        let token = trap_handlers.register(Trap::Interrupt(interrupt), uart, token);
-
-        // Finalize initialization
-        let token = unsafe { TIMER.finanlize(token) };
+        let token = TrapHandlers::register(Trap::Interrupt(interrupt), TIMER.as_ref(), token);
 
         return Ok(token);
     }

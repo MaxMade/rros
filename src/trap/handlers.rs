@@ -43,7 +43,7 @@ impl TrapHandlers {
     /// Prepare [`TRAP_HANDLERS`].
     pub fn initialize(token: LevelInitialization) -> LevelInitialization {
         // Get mutable reference for TRAP_HANDLERS
-        let (handlers, token) = TRAP_HANDLERS.as_mut(token);
+        let mut handlers = TRAP_HANDLERS.get_mut(token);
 
         // Initialize members
         let panic: HandlerRef = &PANIC;
@@ -53,7 +53,7 @@ impl TrapHandlers {
         handlers.pending_interrupts = PerCore::new_copy([false; NUM_INTERRUPT_HANDLERS]);
         handlers.pending_exceptions = PerCore::new_copy([false; NUM_EXCEPTION_HANDLERS]);
 
-        token
+        handlers.destroy()
     }
 
     /// Register `handler` for `trap`
@@ -61,13 +61,11 @@ impl TrapHandlers {
     /// # Panic
     /// If another `handler` is already register for `trap`, this function will panic!
     pub fn register(
-        &self,
         trap: Trap,
         handler: HandlerRef,
         token: LevelInitialization,
     ) -> LevelInitialization {
-        // Get mutable reference for TRAP_HANDLERS
-        let (handlers, token) = TRAP_HANDLERS.as_mut(token);
+        let mut handlers = TRAP_HANDLERS.get_mut(token);
 
         let panic: HandlerRef = &PANIC;
         match trap {
@@ -93,7 +91,7 @@ impl TrapHandlers {
             }
         }
 
-        token
+        handlers.destroy()
     }
 
     /// Finish initialization of [`TRAP_HANDLERS`] after all drivers registered their corresponding
