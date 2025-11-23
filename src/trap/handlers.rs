@@ -8,6 +8,7 @@ use crate::kernel::cpu::STVecMode;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;
+use crate::sync::level::LevelLockedPrologue;
 use crate::sync::level::LevelPrologue;
 use crate::sync::per_core::PerCore;
 use crate::trap::cause::Exception;
@@ -31,9 +32,11 @@ pub struct TrapHandlers {
     /// Register [`TrapHandlers`] handlers for [`Trap::Exception`]
     pub(in crate::trap::handlers) interrupt_handlers: [HandlerRef; NUM_INTERRUPT_HANDLERS],
     /// Pending [`Trap::Interrupt`]s.
-    pub(in crate::trap::handlers) pending_interrupts: PerCore<[bool; NUM_INTERRUPT_HANDLERS]>,
+    pub(in crate::trap::handlers) pending_interrupts:
+        PerCore<[bool; NUM_INTERRUPT_HANDLERS], LevelPrologue, LevelLockedPrologue>,
     /// Pending [`Trap::Exception`]s.
-    pub(in crate::trap::handlers) pending_exceptions: PerCore<[bool; NUM_EXCEPTION_HANDLERS]>,
+    pub(in crate::trap::handlers) pending_exceptions:
+        PerCore<[bool; NUM_EXCEPTION_HANDLERS], LevelPrologue, LevelLockedPrologue>,
 }
 
 impl TrapHandlers {
@@ -121,16 +124,22 @@ impl TrapHandlers {
     /// If a [`Trap`] interrupts an other currently running `epilogue` with its own corresponding
     /// `prologue`, the corresponding [`Trap`] is enqueue and executed later on.
     pub fn enqueue(trap: Trap, token: LevelPrologue) -> LevelPrologue {
-        match trap {
+        let token = match trap {
             Trap::Interrupt(interrupt) => {
                 let index: usize = interrupt.into();
-                unsafe { TRAP_HANDLERS.as_ref().pending_interrupts.get_mut()[index] = true }
+                let (mut pending_interrupt, token) =
+                    TRAP_HANDLERS.as_ref().pending_interrupts.get_mut(token);
+                pending_interrupt[index] = true;
+                pending_interrupt.destroy(token)
             }
             Trap::Exception(exception) => {
                 let index: usize = exception.into();
-                unsafe { TRAP_HANDLERS.as_ref().pending_exceptions.get_mut()[index] = true }
+                let (mut pending_exception, token) =
+                    TRAP_HANDLERS.as_ref().pending_exceptions.get_mut(token);
+                pending_exception[index] = true;
+                pending_exception.destroy(token)
             }
-        }
+        };
 
         token
     }
@@ -143,13 +152,9 @@ impl TrapHandlers {
         let mut trap = None;
 
         // Check for pending interrupt
-        for (i, pending) in TRAP_HANDLERS
-            .as_ref()
-            .pending_interrupts
-            .get()
-            .iter()
-            .enumerate()
-        {
+        let (mut pending_interrupts, token) =
+            TRAP_HANDLERS.as_ref().pending_interrupts.get_mut(token);
+        for (i, pending) in pending_interrupts.iter().enumerate() {
             if *pending {
                 let interrupt = Interrupt::from(i);
                 trap = Some(Trap::Interrupt(interrupt));
@@ -158,20 +163,17 @@ impl TrapHandlers {
         if let Some(Trap::Interrupt(interrupt)) = trap {
             // Mark interrupt as processed
             let index: usize = interrupt.into();
-            unsafe { TRAP_HANDLERS.as_ref().pending_interrupts.get_mut()[index] = false }
+            pending_interrupts[index] = false;
 
             // Return pending interrupt
-            return (trap, token);
+            return (trap, pending_interrupts.destroy(token));
         }
+        let token = pending_interrupts.destroy(token);
 
         // Check for pending exception
-        for (i, pending) in TRAP_HANDLERS
-            .as_ref()
-            .pending_exceptions
-            .get()
-            .iter()
-            .enumerate()
-        {
+        let (mut pending_exceptions, token) =
+            TRAP_HANDLERS.as_ref().pending_exceptions.get_mut(token);
+        for (i, pending) in pending_exceptions.iter().enumerate() {
             if *pending {
                 let exception = Exception::from(i);
                 trap = Some(Trap::Exception(exception));
@@ -180,11 +182,12 @@ impl TrapHandlers {
         if let Some(Trap::Exception(exception)) = trap {
             // Mark exception as processed
             let index: usize = exception.into();
-            unsafe { TRAP_HANDLERS.as_ref().pending_exceptions.get_mut()[index] = false }
+            pending_exceptions[index] = false;
 
             // Return pending exception
-            return (trap, token);
+            return (trap, pending_exceptions.destroy(token));
         }
+        let token = pending_exceptions.destroy(token);
 
         (None, token)
     }

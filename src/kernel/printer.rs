@@ -1,6 +1,7 @@
 //! Formatted Output.
 
 use core::array;
+use core::cell::UnsafeCell;
 use core::fmt::Arguments;
 use core::fmt::Error;
 use core::fmt::Write;
@@ -9,11 +10,11 @@ use core::ptr;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
+use crate::config;
 use crate::drivers::uart::UART;
 use crate::kernel::cpu;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
-use crate::sync::per_core::PerCore;
 
 /// Global printer instance.
 pub static PRINTER: InitCell<Printer> = InitCell::new();
@@ -72,16 +73,16 @@ impl<'a> Write for Formatter<'a> {
 /// Global printer for formatted output.
 pub struct Printer {
     /// Low priority message buffers (for each hart), e.g. during `epilogue`s.
-    low_priority_msgs: PerCore<[u8; MSG_BUFFER_SIZE]>,
+    low_priority_msgs: [UnsafeCell<[u8; MSG_BUFFER_SIZE]>; config::MAX_CPU_NUM],
 
     /// Low priority message length (for each hart), e.g. during `epilogue`s.
-    low_priority_lens: PerCore<usize>,
+    low_priority_lens: [UnsafeCell<usize>; config::MAX_CPU_NUM],
 
     /// High priority message buffers (for each hart), e.g. during `prologue`s.
-    high_priority_msgs: PerCore<[u8; MSG_BUFFER_SIZE]>,
+    high_priority_msgs: [UnsafeCell<[u8; MSG_BUFFER_SIZE]>; config::MAX_CPU_NUM],
 
     /// High priority message length (for each hart), e.g. during `prologue`s.
-    high_priority_lens: PerCore<usize>,
+    high_priority_lens: [UnsafeCell<usize>; config::MAX_CPU_NUM],
 
     ticket: AtomicUsize,
 
@@ -92,10 +93,10 @@ impl Printer {
     /// Create a new printer instance.
     pub fn new() -> Self {
         Self {
-            low_priority_msgs: PerCore::new_fn(|_| array::from_fn(|_| 0)),
-            low_priority_lens: PerCore::new_copy(0),
-            high_priority_msgs: PerCore::new_fn(|_| array::from_fn(|_| 0)),
-            high_priority_lens: PerCore::new_copy(0),
+            low_priority_msgs: array::from_fn(|_| UnsafeCell::new(array::from_fn(|_| 0))),
+            low_priority_lens: array::from_fn(|_| UnsafeCell::new(0)),
+            high_priority_msgs: array::from_fn(|_| UnsafeCell::new(array::from_fn(|_| 0))),
+            high_priority_lens: array::from_fn(|_| UnsafeCell::new(0)),
             ticket: AtomicUsize::new(0),
             serving: AtomicUsize::new(0),
         }
@@ -118,13 +119,25 @@ impl Printer {
         // using the given logical CPU ID.
         let (buffer, len) = match is_high_priority {
             true => unsafe {
-                let buffer = self.high_priority_msgs.get_mut();
-                let len = self.high_priority_lens.get_mut();
+                let buffer = self.high_priority_msgs[cpu::current().raw()]
+                    .get()
+                    .as_mut()
+                    .unwrap();
+                let len = self.high_priority_lens[cpu::current().raw()]
+                    .get()
+                    .as_mut()
+                    .unwrap();
                 (buffer, len)
             },
             false => unsafe {
-                let buffer = self.low_priority_msgs.get_mut();
-                let len = self.low_priority_lens.get_mut();
+                let buffer = self.low_priority_msgs[cpu::current().raw()]
+                    .get()
+                    .as_mut()
+                    .unwrap();
+                let len = self.low_priority_lens[cpu::current().raw()]
+                    .get()
+                    .as_mut()
+                    .unwrap();
                 (buffer, len)
             },
         };
@@ -157,6 +170,9 @@ impl Printer {
         Ok(())
     }
 }
+
+unsafe impl Sync for Printer {}
+unsafe impl Send for Printer {}
 
 /// Macro for formatted  output with built-in log level filtering.
 #[macro_export]
