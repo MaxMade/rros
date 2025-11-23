@@ -140,39 +140,6 @@ impl Display for ExecutionMode {
     }
 }
 
-/// Cycle-Counter Register
-///
-/// #See
-/// Section `4.1.4 Supervisor Timers and Performance Counters` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug)]
-pub struct CycleCounter(u64);
-
-impl CycleCounter {
-    /// Create new, initialized [`CycleCounter`].
-    pub fn new() -> Self {
-        let mut reg = CycleCounter(0);
-        reg.read();
-        return reg;
-    }
-
-    /// Update value of [`CycleCounter`] register based on underlying `cycle` register.
-    pub fn read(&mut self) {
-        let mut x: u64;
-        unsafe {
-            asm!(
-                "csrr {x}, cycle",
-                x = out(reg) x,
-            );
-        }
-        self.0 = x;
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
 /// Counter-Enable Register
 ///
 /// #See
@@ -211,7 +178,7 @@ impl CounterEnable {
         }
     }
 
-    /// Check if [`CycleCounter`] register is enabled.
+    /// Check if [`Cycle`](crate::arch::cycle::Cycle) register is enabled.
     pub fn is_cycle_enabled(&self) -> bool {
         (self.0 & (1 << 0)) != 0
     }
@@ -231,7 +198,7 @@ impl CounterEnable {
         self.0
     }
 
-    /// Enable/disable [`CycleCounter`] register.
+    /// Enable/disable [`Cycle`](crate::arch::cycle::Cycle) register.
     pub fn set_cycle_enabled(&mut self, enabled: bool) {
         match enabled {
             true => self.0 |= 1 << 0,
