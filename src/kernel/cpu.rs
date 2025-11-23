@@ -410,3 +410,116 @@ impl Display for STVecMode {
         }
     }
 }
+
+/// Fine-grained Interrupt Enable Register
+///
+/// #See
+/// Section `4.1.3 Supervisor Interrupt Registers (sip and sie)` of `Volume II: RISC-V Privileged Architectures`
+#[derive(Debug)]
+pub struct SIE(u64);
+
+impl SIE {
+    /// Create new, initialized `SupervisorInterruptEnable`.
+    pub fn new() -> Self {
+        let mut reg = SIE(0);
+        reg.read();
+        return reg;
+    }
+
+    /// Update value of `SupervisorInterruptEnable` based on underlying  `sie` register.
+    pub fn read(&mut self) {
+        let mut x: u64;
+        unsafe {
+            asm!(
+                "csrr {x}, sie",
+                x = out(reg) x,
+            );
+        }
+        self.0 = x;
+    }
+
+    /// Update `sie` register based on value of `SupervisorInterruptEnable`.
+    pub fn write(&self) {
+        let x: u64 = self.0;
+        unsafe {
+            asm!(
+                "csrw sie, {x}",
+                x = in(reg) x,
+            );
+        }
+    }
+
+    /// Set all enable-bits for interrupt and write updated value back to register.
+    pub fn enable_all_interrupts(&mut self) {
+        self.0 = u64::MAX;
+        self.write();
+    }
+
+    /// Clear all enable-bits for interrupt and write updated value back to register.
+    pub fn disable_all_interrupts(&mut self) {
+        self.0 = 0u64;
+        self.write();
+    }
+}
+
+/// Mask all interrupts (in `sie` register).
+pub fn mask_all_interrupts() {
+    let mut sie = SIE::new();
+    sie.disable_all_interrupts();
+}
+
+/// Unmask all interrupts (in `sie` register).
+pub fn unmask_all_interrupts() {
+    let mut sie = SIE::new();
+    sie.enable_all_interrupts();
+}
+
+/// Enable supervisor-mode interrupts (in `sstatus register).
+pub fn enable_interrupts() {
+    let mut sstatus = SStatus::new();
+    sstatus.set_sie(true);
+    sstatus.write();
+}
+
+/// Disable supervisor-mode interrupts (in `sstatus register).
+pub fn disable_interrupts() {
+    let mut sstatus = SStatus::new();
+    sstatus.set_sie(false);
+    sstatus.write();
+}
+
+/// Check if supervisor-mode interrupts are enabled.
+pub fn interrupts_enabled() -> bool {
+    let mut sstatus = SStatus::new();
+    sstatus.get_sie()
+}
+
+#[derive(Debug, Copy, Clone)]
+/// Abstraction of interrupt flag.
+pub struct InterruptFlag(bool);
+
+impl InterruptFlag {
+    /// Create a new uninitialized interrupt flag.
+    pub const fn new() -> Self {
+        Self(false)
+    }
+}
+
+/// Save interrupt flag and disable supervisor-mode interrupts.
+pub fn save_and_disable_interrupts() -> InterruptFlag {
+    let mut sstatus = SStatus::new();
+    let ret = InterruptFlag {
+        0: sstatus.get_sie(),
+    };
+    sstatus.set_sie(false);
+    sstatus.write();
+
+    return ret;
+}
+
+/// Restore previous interrupt flag.
+pub fn restore_interrupts(flag: InterruptFlag) {
+    let mut sstatus = SStatus::new();
+    sstatus.set_sie(flag.0);
+    sstatus.write();
+}
