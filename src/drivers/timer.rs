@@ -1,6 +1,6 @@
 //! Timer using RISC-V `Timer` extension.
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 use crate::arch::scounteren::SCounterEn;
 use crate::arch::sie::SIE;
 use crate::arch::sip::SIP;

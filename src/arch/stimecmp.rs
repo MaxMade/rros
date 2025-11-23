@@ -5,7 +5,7 @@
 
 use core::arch::asm;
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 
 /// Supervisor time-compare register
 ///

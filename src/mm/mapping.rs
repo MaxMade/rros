@@ -2,7 +2,7 @@
 
 use core::ffi::c_void;
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 use crate::arch::satp::SATP;
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::compiler;

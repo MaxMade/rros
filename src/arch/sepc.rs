@@ -6,7 +6,7 @@
 
 use core::arch::asm;
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 
 /// Abstraction of `sepc` register.
 ///

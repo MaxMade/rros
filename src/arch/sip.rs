@@ -5,7 +5,7 @@
 
 use core::arch::asm;
 
-use super::cpu::CSR;
+use crate::arch::csr::CSR;
 
 /// Fine-grained Interrupt Pending Register
 ///

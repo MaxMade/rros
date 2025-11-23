@@ -6,7 +6,7 @@
 use core::arch::asm;
 
 use crate::arch::cpu::page_size;
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::mm::pte::PageTableEntry;

@@ -1,6 +1,6 @@
 //! Rusty Trap Entry.
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 use crate::arch::register::Register;
 use crate::kernel::cpu;
 

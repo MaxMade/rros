@@ -1,6 +1,7 @@
 //! Architecture specifics.
 
 pub mod cpu;
+pub mod csr;
 pub mod cycle;
 pub mod inst_ret;
 pub mod mode;

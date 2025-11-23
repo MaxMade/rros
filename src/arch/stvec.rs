@@ -6,7 +6,7 @@
 use core::arch::asm;
 use core::fmt::Display;
 
-use crate::arch::cpu::CSR;
+use crate::arch::csr::CSR;
 
 /// Trap-Vector Base-Address Register
 ///
