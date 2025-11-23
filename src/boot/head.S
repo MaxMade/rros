@@ -1,6 +1,12 @@
 // Size of boot stack
 .equ STACK_SIZE, (16 * 4096)
 
+// Size of a page table
+.equ PT_SIZE, (4096)
+
+// Size of a page-table entry
+.equ PTE_SIZE, (8)
+
 .global _start
 
 .section .text.init
@@ -29,6 +35,14 @@ _start:
 	la sp, boot_stack
 	add sp, sp, t0
 
+	// Enable 39-bit paging
+	la t0, pte
+	srai t0, t0, 12
+	li t1, -1
+	slli t1, t1, 63
+	or t0, t0, t1 // t0 = (pte >> 12) | (0x8 << 60)
+	csrw satp, t0
+
 	// Jump to Rust World
 	j kernel_ap_init
 
@@ -40,6 +54,38 @@ _start:
 	// Setup stack for boot cpu
 	la sp, boot_stack
 	add sp, sp, t0
+
+// Create identity mapping for lower 4 GiB
+.setup_paging:
+	// Load address of pte
+	la t0, pte
+
+	// Update physical page number (0GiB) and protection bits (+RWX -UG)
+	li t1, 0xf
+	sd t1, (0 * PTE_SIZE)(t0)
+
+	// Update physical page number (1GiB) and protection bits (+RWX -UG)
+	li t1, (0x10000000 | 0xf)
+	sd t1, (1 * PTE_SIZE)(t0)
+
+	// Update physical page number (2GiB) and protection bits (+RWX -UG)
+	li t1, (0x20000000 | 0xf)
+	sd t1, (2 * PTE_SIZE)(t0)
+
+	// Update physical page number (3GiB) and protection bits (+RWX -UG)
+	li t1, (0x30000000 | 0xf)
+	sd t1, (3 * PTE_SIZE)(t0)
+
+	// Calculate: pte / 4096
+	srai t0, t0, 12
+
+	// Calculate: pte | (0x8 << 60)
+	li t1, -1
+	slli t1, t1, 63
+	or t0, t0, t1
+
+	// Enable 39-bit paging
+	csrw satp, t0
 
 	// Jump to Rust World
 	j kernel_init
@@ -58,3 +104,9 @@ boot_stack:
 .align 4
 cpu_counter:
 	.word 0
+
+.section .bss
+
+.align 12
+pte:
+    .skip PT_SIZE
