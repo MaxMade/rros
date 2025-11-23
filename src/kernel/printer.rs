@@ -11,7 +11,36 @@ use core::sync::atomic::Ordering;
 
 use crate::drivers::uart::UART;
 use crate::kernel::cpu;
+use crate::sync::init_cell::InitCell;
+use crate::sync::level::LevelInitialization;
 use crate::sync::per_core::PerCore;
+
+/// Global printer instance.
+pub static PRINTER: InitCell<Printer> = InitCell::new();
+
+/// Finish initialization of global printer
+pub fn initialize(
+    token: LevelInitialization,
+) -> Result<LevelInitialization, (Error, LevelInitialization)> {
+    unsafe { Ok(PRINTER.finanlize(token)) }
+}
+
+/// Logging level.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LogLevel {
+    /// Print tracing message (very noise).
+    Trace = 0,
+    /// Print debugging message (very verbose).
+    Debug = 1,
+    /// Print informative message.
+    Info = 2,
+    /// Print warning-level message.
+    Warn = 3,
+    /// Print error-level message.
+    Error = 4,
+    /// Print emergency-level message.
+    Emergency = 5,
+}
 
 const MSG_BUFFER_SIZE: usize = 512;
 struct Formatter<'a> {
@@ -110,11 +139,25 @@ impl Printer {
             hint::spin_loop();
         }
         for i in 0..*len {
-            let _ = unsafe { UART.write_unchecked(buffer[i]) };
+            unsafe {
+                UART.write_unchecked(buffer[i])
+                    .map_err(|_| Error::default())?
+            };
         }
         self.serving.fetch_add(1, Ordering::Release);
         cpu::restore_interrupts(interrupt_flag);
 
         Ok(())
     }
+}
+
+/// Macro for formatted  output with built-in log level filtering.
+#[macro_export]
+macro_rules! printk {
+    ($level:expr, $($arg:tt)*) => {{
+            if $level >= crate::config::LOG_LEVEL {
+                let result = crate::kernel::printer::PRINTER.as_ref().write_fmt(format_args!($($arg)*));
+                while result.is_err() {}
+            }
+        }};
 }

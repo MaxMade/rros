@@ -75,6 +75,14 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
         Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
     };
 
+    // Initialize global printer
+    let level_initialization = match kernel::printer::initialize(level_initialization) {
+        Ok(token) => token,
+        Err((error, _)) => panic!("Unable to initialize global printer: {}!", error),
+    };
+
+    printk!(kernel::printer::LogLevel::Info, "Hello World!\n");
+
     loop {}
 }
 

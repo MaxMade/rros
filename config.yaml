@@ -11,4 +11,10 @@ CONFIG_PAGE_SIZE:
   type: usize
   description: |
     Page size.
+
+CONFIG_LOG_LEVEL:
+  value: crate::kernel::printer::LogLevel::Trace
+  type: crate::kernel::printer::LogLevel
+  description: |
+    Log level filtering used by [`printk`](crate::kernel::printer::Printer)..
 ...
