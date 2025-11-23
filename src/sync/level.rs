@@ -45,14 +45,14 @@ where
 
     fn level() -> usize;
 
-    fn enter(self) -> Self::LowerLevel {
+    unsafe fn enter(self) -> Self::LowerLevel {
         assert!(Self::level() > Self::LowerLevel::level());
-        unsafe { Self::LowerLevel::create() }
+        Self::LowerLevel::create()
     }
 
-    fn leave(self) -> Self::HigherLevel {
+    unsafe fn leave(self) -> Self::HigherLevel {
         assert!(Self::level() < Self::HigherLevel::level());
-        unsafe { Self::HigherLevel::create() }
+        Self::HigherLevel::create()
     }
 }
 
@@ -211,7 +211,7 @@ where
 {
     fn new() -> Self;
 
-    fn enter(self, level: HigherLevel) -> Guard {
+    unsafe fn enter(self, level: HigherLevel) -> Guard {
         // Consule level
         let _ = level;
 
@@ -219,7 +219,7 @@ where
         assert!(HigherLevel::level() > LowerLevel::level());
 
         // Create guard
-        unsafe { Guard::new() }
+        Guard::new()
     }
 }
 
@@ -232,7 +232,7 @@ where
 {
     unsafe fn new() -> Self;
 
-    fn leave(self, level: LowerLevel) -> HigherLevel {
+    unsafe fn leave(self, level: LowerLevel) -> HigherLevel {
         // Consule level
         let _ = level;
 
@@ -240,7 +240,7 @@ where
         assert!(HigherLevel::level() > LowerLevel::level());
 
         // Produce level
-        unsafe { HigherLevel::create() }
+        HigherLevel::create()
     }
 }
 
