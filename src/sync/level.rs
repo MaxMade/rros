@@ -1,29 +1,34 @@
 //! Practical apprach for deadlock prevention: Use lock hierarchies!
 //!
 //! ```ascii
-//! ┌────────────────┐
-//! │ LevelEpilogue  │
-//! └────────────────┘
+//! ┌──────────────────────┐
+//! │ LevelEpilogue        │
+//! └──────────────────────┘
 //! enter │ ▲
 //!       ▼ │ leave
-//! ┌────────────────┐
-//! │  LevelDriver   │
-//! └────────────────┘
+//! ┌──────────────────────┐
+//! │ LevelDriver          │
+//! └──────────────────────┘
 //! enter │ ▲
 //!       ▼ │ leave
-//! ┌────────────────┐
-//! │ LevelScheduler │
-//! └────────────────┘
+//! ┌──────────────────────┐
+//! │ LevelScheduler       │
+//! └──────────────────────┘
 //! enter │ ▲
 //!       ▼ │ leave
-//! ┌────────────────┐
-//! │  LevelMemory   │
-//! └────────────────┘
+//! ┌──────────────────────┐
+//! │ LevelMemory          │
+//! └──────────────────────┘
 //! enter │ ▲
 //!       ▼ │ leave
-//! ┌────────────────┐
-//! │ LevelPrologue  │
-//! └────────────────┘
+//! ┌──────────────────────┐
+//! │ LevelPrologue        │
+//! └──────────────────────┘
+//! enter │ ▲
+//!       ▼ │ leave
+//! ┌──────────────────────┐
+//! │ LevelLockedPrologue  │
+//! └──────────────────────┘
 //!
 //! ┌────────────────┐
 //! │ Initialization │
@@ -100,7 +105,7 @@ impl Level for LevelEpilogue {
     }
 
     fn level() -> usize {
-        4
+        5
     }
 }
 
@@ -121,7 +126,7 @@ impl Level for LevelDriver {
     }
 
     fn level() -> usize {
-        3
+        4
     }
 }
 
@@ -142,7 +147,7 @@ impl Level for LevelScheduler {
     }
 
     fn level() -> usize {
-        2
+        3
     }
 }
 
@@ -163,7 +168,7 @@ impl Level for LevelMemory {
     }
 
     fn level() -> usize {
-        1
+        2
     }
 }
 
@@ -174,6 +179,27 @@ pub struct LevelPrologue {
 
 impl Level for LevelPrologue {
     type HigherLevel = LevelMemory;
+
+    type LowerLevel = LevelLockedPrologue;
+
+    unsafe fn create() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+
+    fn level() -> usize {
+        1
+    }
+}
+
+/// Level *Locked* Progloue (used by [`IRQTicketLocks`](crate::sync::ticketlock::IRQTicketLock))
+pub struct LevelLockedPrologue {
+    phantom: PhantomData<Self>,
+}
+
+impl Level for LevelLockedPrologue {
+    type HigherLevel = LevelPrologue;
 
     type LowerLevel = LevelInvalid;
 
