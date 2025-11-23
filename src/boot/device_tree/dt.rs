@@ -1,18 +1,18 @@
 //! Abstraction of a device tree.
 
-use core::cell::UnsafeCell;
-use core::mem::MaybeUninit;
-
 use crate::boot::device_tree::parser::Parser;
+use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 
-const INITIALIZED: UnsafeCell<bool> = UnsafeCell::new(false);
-const DEVICE_TREE: UnsafeCell<MaybeUninit<DeviceTree>> = UnsafeCell::new(MaybeUninit::uninit());
+static DEVICE_TREE: InitCell<DeviceTree> = InitCell::new();
 
 #[derive(Debug)]
 pub struct DeviceTree {
     parser: Parser,
 }
+
+unsafe impl Sync for DeviceTree {}
+unsafe impl Send for DeviceTree {}
 
 impl DeviceTree {
     /// Initialize device tree.
@@ -25,6 +25,7 @@ impl DeviceTree {
         dtb_ptr: *const u8,
         token: LevelInitialization,
     ) -> (&'static Self, LevelInitialization) {
+        // Parse device tree blob
         let parser = match Parser::new(dtb_ptr) {
             Ok(parser) => parser,
             Err(err) => {
@@ -32,30 +33,16 @@ impl DeviceTree {
             }
         };
 
+        // Update DEVICE_TREE
+        let (device_tree, token) = DEVICE_TREE.as_mut(token);
+        *device_tree = DeviceTree { parser };
+
+        // Finalize InitCell
         // # Safety
         // During the initialization phase (as indicated by `token`), no concurrent access is possible.
-        DEVICE_TREE
-            .get()
-            .as_mut()
-            .unwrap()
-            .write(DeviceTree { parser });
+        let token = unsafe { DEVICE_TREE.finanlize(token) };
 
-        // # Safety
-        // During the initialization phase (as indicated by `token`), no concurrent access is possible.
-        return (DEVICE_TREE.get().as_ref().unwrap().assume_init_ref(), token);
-    }
-
-    /// Get an reference to the global device tree instance.
-    pub fn get_dt() -> &'static Self {
-        // # Safety
-        //
-        // Two cases can be observed:
-        // - During the initialization phase, no concurrent access is possible. Therefore, either
-        // write-access (using `initialization`) or read-access (every other method) is permitted.
-        //
-        // - After the initialization, only read-access (using every method except from
-        // `initialize`) is permitted.
-        unsafe { DEVICE_TREE.get().as_ref().unwrap().assume_init_ref() }
+        return (DEVICE_TREE.as_ref(), token);
     }
 
     /// Get the number of enumerated CPUs within the device tree.
