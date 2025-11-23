@@ -1,4 +1,4 @@
-//! Kernel-Abstractions related to trap.
+//! Kernel-Abstractions trap causes.
 
 use core::fmt::Display;
 

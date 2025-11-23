@@ -7,7 +7,7 @@ use crate::kernel::cpu::SScratch;
 use crate::kernel::cpu::SStatus;
 use crate::kernel::cpu::STVal;
 use crate::kernel::cpu::SEPC;
-use crate::kernel::trap::Trap;
+use crate::trap::cause::Trap;
 
 /// Context object passed by low-level (assembly) trap entry.
 pub struct TrapContext([u64; 36]);

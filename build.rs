@@ -165,9 +165,6 @@ fn main() {
     /* Build ./src/boot/head.S */
     compile_assembly_file(path::Path::new("./src/boot/head.S"), &configs_options);
 
-    /* Build ./src/kernel/trap_entry.S */
-    compile_assembly_file(
-        path::Path::new("./src/kernel/trap_entry.S"),
-        &configs_options,
-    );
+    /* Build ./src/trap/entry.S */
+    compile_assembly_file(path::Path::new("./src/trap/entry.S"), &configs_options);
 }

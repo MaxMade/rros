@@ -16,6 +16,7 @@ pub mod config;
 pub mod drivers;
 pub mod kernel;
 pub mod sync;
+pub mod trap;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {

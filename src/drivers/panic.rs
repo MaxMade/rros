@@ -1,9 +1,9 @@
 //! Panic handler for unexpected interupts.
 
 use crate::drivers::driver::Driver;
-use crate::kernel::trap::Trap;
-use crate::kernel::trap_handlers::TrapHandler;
 use crate::sync::level::{LevelEpilogue, LevelPrologue};
+use crate::trap::cause::Trap;
+use crate::trap::handlers::TrapHandler;
 
 /// Panic handler for unexpected interupts.
 pub struct Panic {}
