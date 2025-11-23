@@ -14,14 +14,13 @@ use crate::drivers::driver::DriverError;
 use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
+use crate::kernel::time::NanoSecond;
+use crate::kernel::time::TimeUnits;
 use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
-use crate::sync::level::Adapter;
-use crate::sync::level::AdapterEpiloguePrologue;
-use crate::sync::level::AdapterGuard;
-use crate::sync::level::LevelEpilogue;
+use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelInitialization;
-use crate::sync::ticketlock::IRQTicketlock;
+use crate::sync::ticketlock::TicketlockDriver;
 
 /// Global timer instance.
 pub static RTC: InitCell<RealTimeClock> = InitCell::new();
@@ -53,7 +52,50 @@ enum RegisterOffset {
 /// Driver for Google Goldfish RTC.
 pub struct RealTimeClock {
     /// Configuration space.
-    config_space: IRQTicketlock<MMIOSpace>,
+    config_space: TicketlockDriver<MMIOSpace>,
+}
+
+impl RealTimeClock {
+    /// Wait for a given time period.
+    pub fn wait(&self, time: NanoSecond, token: LevelDriver) -> LevelDriver {
+        // Convert time to NanoSecond
+
+        // Lock driver
+        let (config_space, token) = self.config_space.lock(token);
+
+        // Calculate expected time stamp
+        let time_low: u32 = config_space.load(RegisterOffset::TimeLow as usize).unwrap();
+        let time_high: u32 = config_space
+            .load(RegisterOffset::TimeHigh as usize)
+            .unwrap();
+        let cur_timer = ((time_high as u64) << 32) | (time_low as u64);
+
+        let time_start = NanoSecond::new(usize::try_from(cur_timer).unwrap());
+        let time_end = time_start + time;
+
+        loop {
+            let time_low: u32 = config_space.load(RegisterOffset::TimeLow as usize).unwrap();
+            let time_high: u32 = config_space
+                .load(RegisterOffset::TimeHigh as usize)
+                .unwrap();
+            let time = ((time_high as u64) << 32) | (time_low as u64);
+            let time_cur = NanoSecond::new(usize::try_from(time).unwrap());
+
+            if time_start < time_end {
+                if time_cur > time_end || time_cur < time_start {
+                    break;
+                }
+            } else {
+                if time_cur > time_start && time_cur < time_end {
+                    break;
+                }
+            }
+        }
+
+        // Unlock driver
+        let token = config_space.unlock(token);
+        token
+    }
 }
 
 impl Driver for RealTimeClock {
