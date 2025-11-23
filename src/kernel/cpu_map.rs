@@ -1,11 +1,14 @@
 //! CPU map
 
-use core::cell::UnsafeCell;
 use core::fmt::Display;
 
+use crate::boot::device_tree::dt::DeviceTree;
 use crate::config;
 use crate::kernel::cpu::HartID;
+use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
+
+use super::sbi;
 
 /// Logical CPU ID.
 ///
@@ -26,47 +29,56 @@ impl Display for LogicalCPUID {
     }
 }
 
-const CPU_MAP_IDX: UnsafeCell<usize> = UnsafeCell::new(0);
-const CPU_MAP: UnsafeCell<[HartID; config::MAX_CPU_NUM]> =
-    UnsafeCell::new([HartID::new(0); config::MAX_CPU_NUM]);
+#[derive(Debug)]
+pub struct CPUMap {
+    idx: usize,
+    map: [HartID; config::MAX_CPU_NUM],
+}
 
-/// Register hart at CPU map.
+static CPU_MAP: InitCell<CPUMap> = InitCell::new();
+
+/// Initialize CPU map using device tree and SBI information.
 ///
 /// # Panics
 ///
 /// The internal CPU map is capable of managing at most [`config::MAX_CPU_NUM`] entries. If this
-/// limit is exceeded, `register_hart` will `panic`.
-pub fn register_hart(
-    hart_id: HartID,
-    token: LevelInitialization,
-) -> (LogicalCPUID, LevelInitialization) {
-    // Fetch CPU map index
-    //
-    // # Safety
-    // During the initialization phase (as indicated by `token`), no concurrent access is possible.
-    let cpu_map_idx = unsafe { CPU_MAP_IDX.get().as_mut().unwrap() };
-
-    // Check if maximum number of supported harts is reached
-    if *cpu_map_idx >= config::MAX_CPU_NUM {
-        panic!("Unable to register hart: Maximum number of supported Logical IDs reached!");
+/// limit is exceeded, `initialize` will `panic`.
+pub fn initialize(token: LevelInitialization) -> LevelInitialization {
+    // Get maximum supported number of CPUs as indicated by device tree.
+    let dt = DeviceTree::get_dt();
+    let max_cpu_num = dt.get_cpu_count();
+    if max_cpu_num > config::MAX_CPU_NUM {
+        panic!("Maximum number of supported CPUs exceeded!");
     }
 
-    // Update CPU map
-    //
-    // # Safety
-    // During the initialization phase (as indicated by `token`), no concurrent access is possible.
-    unsafe {
-        let cpu_map = CPU_MAP.get().as_mut().unwrap();
-        cpu_map[*cpu_map_idx] = hart_id;
+    // Initialzie CPU_MAP with sane defaults
+    let (cpu_map, token) = CPU_MAP.as_mut(token);
+    cpu_map.idx = 0;
+
+    // Try to lookup associated hart ID using SBI.
+    for i in 0..usize::MAX {
+        /* Success: All CPUs were correctly identified and registered */
+        if cpu_map.idx >= max_cpu_num {
+            break;
+        }
+
+        /* Query state of hart */
+        let hart_id = HartID::new(u64::try_from(i).unwrap());
+        match sbi::status_hart(hart_id) {
+            Ok(_) => {
+                /* Identified hart: Update map */
+                cpu_map.map[cpu_map.idx] = hart_id;
+
+                /* Increment number of identified harts */
+                cpu_map.idx += 1;
+            }
+            Err(error) => {
+                panic!("Unable to query state of hart: {}", error);
+            }
+        }
     }
 
-    // Fetch logical ID
-    let logical_id = LogicalCPUID::new(u64::try_from(*cpu_map_idx).unwrap());
-
-    // Update CPU map index
-    *cpu_map_idx += 1;
-
-    (logical_id, token)
+    token
 }
 
 /// Lookup [`LogicalCPUID`] for corresponding [`HartID`].
@@ -74,16 +86,8 @@ pub fn register_hart(
 /// # Panics
 /// If no corresponding `HartID` is found, `panic` will be called.
 pub fn lookup_logical_id(hart_id: HartID) -> LogicalCPUID {
-    // # Safety
-    // Two cases can be observed:
-    // - During the initialization phase, no concurrent access is possible. Therefore, either
-    // write-access (using `register_hart`) or read-access (using `lookup_hart_id`/`lookup_logical_id`) is permitted.
-    //
-    // - After the initialization, only read-access (using `lookup_hart_id`/`lookup_logical_id`) is
-    // permitted.
-    let cpu_map = unsafe { CPU_MAP.get().as_ref().unwrap() };
-
-    for (curr_logical_id, curr_hart_id) in cpu_map.iter().enumerate() {
+    let cpu_map = CPU_MAP.as_ref();
+    for (curr_logical_id, curr_hart_id) in cpu_map.map.iter().enumerate() {
         if *curr_hart_id == hart_id {
             return LogicalCPUID::new(u64::try_from(curr_logical_id).unwrap());
         }
@@ -100,23 +104,13 @@ pub fn lookup_logical_id(hart_id: HartID) -> LogicalCPUID {
 /// # Panics
 /// If no corresponding `LogicalCPUID` is found, `panic` will be called.
 pub fn lookup_hart_id(logical_id: LogicalCPUID) -> HartID {
-    // # Safety
-    // Two cases can be observed:
-    // - During the initialization phase, no concurrent access is possible. Therefore, either
-    // write-access (using `register_hart`) or read-access (using `lookup_hart_id`/`lookup_logical_id`) is permitted.
-    //
-    // - After the initialization, only read-access (using `lookup_hart_id`/`lookup_logical_id`) is
-    // permitted.
-    let cpu_map = unsafe { CPU_MAP.get().as_ref().unwrap() };
-    let cpu_map_idx = unsafe { *CPU_MAP_IDX.get().as_ref().unwrap() };
-    let logical_id = usize::try_from(logical_id.0).unwrap();
-
-    if logical_id >= cpu_map_idx {
+    let cpu_map = CPU_MAP.as_ref();
+    if logical_id.0 >= u64::try_from(cpu_map.idx).unwrap() {
         panic!(
             "Unable to lookup corresponding hart ID for logical ID {}",
             logical_id
         );
     }
 
-    cpu_map[usize::try_from(logical_id).unwrap()]
+    cpu_map.map[usize::try_from(logical_id.0).unwrap()]
 }

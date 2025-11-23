@@ -45,6 +45,11 @@ impl DeviceTree {
         return (DEVICE_TREE.as_ref(), token);
     }
 
+    /// Get initialize device tree (parser).
+    pub fn get_dt() -> &'static Self {
+        DEVICE_TREE.as_ref()
+    }
+
     /// Get the number of enumerated CPUs within the device tree.
     pub fn get_cpu_count(&self) -> usize {
         self.parser
