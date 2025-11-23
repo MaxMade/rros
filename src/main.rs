@@ -11,6 +11,8 @@ use boot::device_tree::dt::DeviceTree;
 use drivers::driver::Driver;
 use sync::level::Level;
 
+use crate::sync::epilogue;
+
 pub mod boot;
 pub mod config;
 pub mod drivers;
@@ -130,9 +132,22 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     };
 
     // Boot application processors
-    let level_epilgoue = kernel::boot_ap::startup(level_initialization);
+    kernel::boot_ap::startup(level_initialization);
 
-    printk!(kernel::printer::LogLevel::Info, "Hello World!\n");
+    // Enter epilogue level
+    let level_epilogue = epilogue::try_enter().unwrap();
+
+    // Enable interrupts
+    unsafe {
+        kernel::cpu::unmask_all_interrupts();
+        kernel::cpu::enable_interrupts();
+    }
+
+    printk!(
+        kernel::printer::LogLevel::Info,
+        "Core {}: Finished initialization\n",
+        kernel::cpu::current()
+    );
 
     loop {}
 }
@@ -152,6 +167,21 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Initalize fine-grained kernel mapping
     mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();
+
+    // Enter epilogue level
+    let level_epilogue = epilogue::try_enter().unwrap();
+
+    // Enable interrupts
+    unsafe {
+        kernel::cpu::unmask_all_interrupts();
+        kernel::cpu::enable_interrupts();
+    }
+
+    printk!(
+        kernel::printer::LogLevel::Info,
+        "Core {}: Finished initialization\n",
+        kernel::cpu::current()
+    );
 
     loop {}
 }

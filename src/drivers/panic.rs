@@ -36,7 +36,7 @@ impl TrapHandler for Panic {
         panic!("PANIC! Unexpected interrupt");
     }
 
-    fn epilogue(&self, state: &mut TrapContext, token: LevelEpilogue) {
+    fn epilogue(&self, state: Option<&mut TrapContext>, token: LevelEpilogue) -> LevelEpilogue {
         let _ = state;
         let _ = token;
         panic!("The panic driver must never request a epilogue");

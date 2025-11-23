@@ -16,6 +16,7 @@ use crate::drivers::driver::DriverError;
 use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
+use crate::kernel::cpu;
 use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
@@ -221,7 +222,11 @@ impl TrapHandler for GoldfishTimer {
 
         TIMER_COUNT.fetch_add(1, Ordering::Relaxed);
 
-        crate::printk!(crate::kernel::printer::LogLevel::Info, "Hello World!\n");
+        crate::printk!(
+            crate::kernel::printer::LogLevel::Debug,
+            "{}: Timer-Interrupt\n",
+            cpu::current()
+        );
 
         (false, token)
     }

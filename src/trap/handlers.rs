@@ -156,6 +156,7 @@ impl TrapHandlers {
             if *pending {
                 let interrupt = Interrupt::from(i);
                 trap = Some(Trap::Interrupt(interrupt));
+                break;
             }
         }
         if let Some(Trap::Interrupt(interrupt)) = trap {
@@ -175,6 +176,7 @@ impl TrapHandlers {
             if *pending {
                 let exception = Exception::from(i);
                 trap = Some(Trap::Exception(exception));
+                break;
             }
         }
         if let Some(Trap::Exception(exception)) = trap {
@@ -217,9 +219,9 @@ pub trait TrapHandler: Sync {
     /// The `epilogue` implements the second half of the interrupt handling process which take care
     /// of all deferrable task. Thus, locking/blocking/waiting/... is allowed! While `prologue`
     /// must be implemented by every [`TrapHandler`], the `epilogue` is optional.
-    fn epilogue(&self, state: &mut TrapContext, token: LevelEpilogue) {
-        let _ = token;
+    fn epilogue(&self, state: Option<&mut TrapContext>, token: LevelEpilogue) -> LevelEpilogue {
         /* Nothing to do here */
+        token
     }
 }
 
@@ -235,5 +237,4 @@ pub fn load_trap_vector() {
     assert!(base % 4 == 0);
     stvec.set_base(base >> 2);
     stvec.write();
-    token
 }

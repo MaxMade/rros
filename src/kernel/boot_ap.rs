@@ -9,8 +9,6 @@ use crate::kernel::compiler;
 use crate::kernel::cpu_map;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::kernel::sbi;
-use crate::sync::level::Level;
-use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;
 
 use super::cpu::current;
@@ -20,7 +18,7 @@ extern "C" {
 }
 
 /// Boot applications processors.
-pub fn startup(token: LevelInitialization) -> LevelEpilogue {
+pub fn startup(token: LevelInitialization) {
     // Consume token
     let _ = token;
 
@@ -54,7 +52,4 @@ pub fn startup(token: LevelInitialization) -> LevelEpilogue {
             }
         }
     }
-
-    // Welcome to the epilogue layer!
-    unsafe { LevelEpilogue::create() }
 }
