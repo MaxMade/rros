@@ -2,14 +2,16 @@
 
 use core::arch::asm;
 use core::fmt::Display;
+use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
 use crate::kernel::cpu_map::LogicalCPUID;
+use crate::sync::level::{Level, LevelPrologue};
 
 /// Let the current hart enter a low-energy mode which can not be left!
 pub fn die() -> ! {
-    disable_interrupts();
     unsafe {
+        disable_interrupts();
         loop {
             asm!("wfi");
         }
@@ -494,7 +496,7 @@ pub fn unmask_all_interrupts() {
 }
 
 /// Enable supervisor-mode interrupts (in `sstatus register).
-pub fn enable_interrupts() {
+pub unsafe fn enable_interrupts() {
     let mut sstatus = SStatus::new(0);
     sstatus.read();
     sstatus.set_sie(true);
@@ -502,11 +504,53 @@ pub fn enable_interrupts() {
 }
 
 /// Disable supervisor-mode interrupts (in `sstatus register).
-pub fn disable_interrupts() {
+pub unsafe fn disable_interrupts() {
     let mut sstatus = SStatus::new(0);
     sstatus.read();
     sstatus.set_sie(false);
     sstatus.write();
+}
+
+#[derive(Debug)]
+/// Abstraction of interrupt flag generated from [`Level`].
+pub struct InterruptFlag<L: Level> {
+    enabled: bool,
+    phantom: PhantomData<L>,
+}
+
+impl<L: Level> InterruptFlag<L> {
+    /// Create uninitialized [`InterruptFlag`]
+    pub const unsafe fn new() -> InterruptFlag<L> {
+        Self {
+            enabled: false,
+            phantom: PhantomData,
+        }
+    }
+}
+
+/// Save interrupt flag and disable supervisor-mode interrupts.
+pub fn save_and_disable_interrupts<L: Level>(token: L) -> (InterruptFlag<L>, LevelPrologue) {
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
+    let ret = InterruptFlag {
+        enabled: sstatus.get_sie(),
+        phantom: PhantomData,
+    };
+    sstatus.set_sie(false);
+    sstatus.write();
+
+    let token = unsafe { LevelPrologue::create() };
+
+    return (ret, token);
+}
+
+/// Restore previous interrupt flag.
+pub fn restore_interrupts<L: Level>(flag: InterruptFlag<L>) -> L {
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
+    sstatus.set_sie(flag.enabled);
+    sstatus.write();
+    unsafe { L::create() }
 }
 
 /// Check if supervisor-mode interrupts are enabled.
@@ -514,38 +558,6 @@ pub fn interrupts_enabled() -> bool {
     let mut sstatus = SStatus::new(0);
     sstatus.read();
     sstatus.get_sie()
-}
-
-#[derive(Debug, Copy, Clone)]
-/// Abstraction of interrupt flag.
-pub struct InterruptFlag(bool);
-
-impl InterruptFlag {
-    /// Create a new uninitialized interrupt flag.
-    pub const fn new() -> Self {
-        Self(false)
-    }
-}
-
-/// Save interrupt flag and disable supervisor-mode interrupts.
-pub fn save_and_disable_interrupts() -> InterruptFlag {
-    let mut sstatus = SStatus::new(0);
-    sstatus.read();
-    let ret = InterruptFlag {
-        0: sstatus.get_sie(),
-    };
-    sstatus.set_sie(false);
-    sstatus.write();
-
-    return ret;
-}
-
-/// Restore previous interrupt flag.
-pub fn restore_interrupts(flag: InterruptFlag) {
-    let mut sstatus = SStatus::new(0);
-    sstatus.read();
-    sstatus.set_sie(flag.0);
-    sstatus.write();
 }
 
 /// Abstraction of `sscratch` register.

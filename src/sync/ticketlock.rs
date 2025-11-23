@@ -241,7 +241,7 @@ impl<T> IRQTicketlock<T> {
         IRQTicketlockGuard<'_, T, LevelPrologue, LevelLockedPrologue>,
         LevelLockedPrologue,
     ) {
-        let flag = cpu::save_and_disable_interrupts();
+        let (flag, token) = cpu::save_and_disable_interrupts(token);
         let (guard, token) = self.lock.lock(token);
 
         let guard = IRQTicketlockGuard { guard, flag };
@@ -258,7 +258,7 @@ impl<T> IRQTicketlock<T> {
         let guard = self.lock.init_lock(token);
         let guard = IRQTicketlockGuard {
             guard,
-            flag: InterruptFlag::new(),
+            flag: unsafe { InterruptFlag::new() },
         };
 
         return guard;
@@ -277,7 +277,7 @@ impl<T> IRQTicketlock<T> {
         ),
         LevelPrologue,
     > {
-        let flag = cpu::save_and_disable_interrupts();
+        let (flag, token) = cpu::save_and_disable_interrupts(token);
 
         let (guard, token) = match self.lock.try_lock(token) {
             Ok((guard, token)) => (guard, token),
@@ -311,7 +311,7 @@ unsafe impl<T: Send> Send for IRQTicketlock<T> {}
 /// Interrupt-safe ticketlock guard.
 pub struct IRQTicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
     guard: TicketlockGuard<'a, T, UpperLevel, LowerLevel>,
-    flag: InterruptFlag,
+    flag: InterruptFlag<UpperLevel>,
 }
 
 impl<'a, T, UpperLevel: Level, LowerLevel: Level>

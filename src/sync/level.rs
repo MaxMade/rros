@@ -193,7 +193,7 @@ impl Level for LevelPrologue {
     }
 }
 
-/// Level *Locked* Progloue (used by [`IRQTicketLocks`](crate::sync::ticketlock::IRQTicketLock))
+/// Level *Locked* Progloue (used by [`IRQTicketLocks`](crate::sync::ticketlock::IRQTicketlock))
 pub struct LevelLockedPrologue {
     phantom: PhantomData<Self>,
 }

@@ -133,7 +133,8 @@ impl Printer {
         formatter.write_fmt(args)?;
 
         // Step 4: Proceed with actual output using UART driver.
-        let interrupt_flag = cpu::save_and_disable_interrupts();
+        let interrupts_enabled = cpu::interrupts_enabled();
+        unsafe { cpu::disable_interrupts() };
         let ticket = self.ticket.fetch_add(1, Ordering::Relaxed);
         while ticket != self.serving.load(Ordering::Acquire) {
             hint::spin_loop();
@@ -145,7 +146,9 @@ impl Printer {
             };
         }
         self.serving.fetch_add(1, Ordering::Release);
-        cpu::restore_interrupts(interrupt_flag);
+        if interrupts_enabled {
+            unsafe { cpu::enable_interrupts() };
+        }
 
         Ok(())
     }

@@ -16,7 +16,6 @@ use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::cpu::ExecutionMode;
 use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
-use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
