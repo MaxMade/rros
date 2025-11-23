@@ -1,14 +1,14 @@
 //! Kernel APIs to create/update/revoke mappings.
 
-use core::ffi::c_void;
-
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
+use crate::kernel::cpu::SATP;
 use crate::kernel::{compiler, cpu};
 use crate::mm::error::MemoryError;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;
 use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging, LevelInitialization};
 use crate::sync::level::{LevelMapping, LevelPaging};
 use crate::sync::ticketlock::TicketlockMapping;
+use core::ffi::c_void;
 
 use super::page_allocator::PageFrameAllocator;
 use super::pte::PageTableEntry;
@@ -80,6 +80,17 @@ pub struct VirtualMemorySystem {
 }
 
 impl VirtualMemorySystem {
+    /// Apply current mapping by writing [`SATP`] register.
+    pub fn load(&self, token: LevelMapping) -> LevelMapping {
+        let (root, token) = self.root.lock(token);
+
+        let mut satp = SATP::new();
+        satp.set_root_page_table(*root);
+        satp.write();
+
+        root.unlock(token)
+    }
+
     /// Create initial [`VirtualMemorySystem`] for kernel-space only.
     pub fn kernel_space(token: LevelInitialization) -> (Self, LevelInitialization) {
         let (p_pt_0, token) = PAGE_FRAME_ALLOCATOR.early_allocate(token).unwrap();
