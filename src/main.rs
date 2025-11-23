@@ -66,6 +66,9 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
+    // Initialize trap vector
+    let level_initialization = trap::handlers::load_trap_vector(level_initialization);
+
     // Initialize serial driver
     let level_initialization = match drivers::uart::Uart::initiailize(level_initialization) {
         Ok(token) => token,

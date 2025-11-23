@@ -1,8 +1,17 @@
 //! Software-Abstractions for trap handlers.
 
+use core::mem;
+
+use crate::kernel::cpu::STVec;
+use crate::kernel::cpu::STVecMode;
 use crate::sync::level::LevelEpilogue;
+use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPrologue;
 use crate::trap::cause::Trap;
+
+extern "C" {
+    fn __trap_entry();
+}
 
 /// Interface for handling traps -  suitable for interrupts and exceptions.
 pub trait TrapHandler {
@@ -58,4 +67,19 @@ pub trait TrapHandler {
     fn is_enqueue(&self) -> bool {
         todo!("Provide default implementation using Driver::cause()");
     }
+}
+
+/// Load address of `__trap_entry` into `stvect` regsiter.
+///
+/// # Caution
+/// This operation must be executed on every hart!
+pub fn load_trap_vector(token: LevelInitialization) -> LevelInitialization {
+    /* Set stvec register */
+    let mut stvec = STVec::new();
+    stvec.set_mode(STVecMode::Direct);
+    let base: u64 = unsafe { mem::transmute(__trap_entry as unsafe extern "C" fn()) };
+    assert!(base % 4 == 0);
+    stvec.set_base(base >> 2);
+    stvec.write();
+    token
 }
