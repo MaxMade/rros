@@ -29,11 +29,6 @@ pub struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
 impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLevel> {
     /// Create a new `Ticketlock`
     pub const fn new(value: T) -> Self {
-        // Sanity check:
-        //
-        // (UpperLevel::LowerLevel == LowerLevel) && (LowerLeve::HeigherLevel == UpperLevel)
-        assert!(UpperLevel::level() > LowerLevel::level());
-
         Self {
             data: UnsafeCell::new(value),
             ticket: AtomicUsize::new(0),
@@ -142,7 +137,7 @@ unsafe impl<T: Send, UpperLevel: Level, LowerLevel: Level> Send
 }
 
 /// Generic `TicketlockGuard`
-struct TicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
+pub struct TicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
     data: &'a mut T,
     counter: &'a AtomicUsize,
     phantom: PhantomData<(UpperLevel, LowerLevel)>,
