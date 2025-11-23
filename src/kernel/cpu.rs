@@ -907,3 +907,95 @@ impl CycleCounter {
         self.0
     }
 }
+
+/// Counter-Enable Register
+///
+/// #See
+/// Section `4.1.5 Counter-Enable Register (scounteren)` of `Volume II: RISC-V Privileged Architectures`
+#[derive(Debug)]
+pub struct CounterEnable(u64);
+
+impl CounterEnable {
+    /// Create new, initialized `time`.
+    pub fn new() -> Self {
+        let mut reg = CounterEnable(0);
+        reg.read();
+        return reg;
+    }
+
+    /// Update value of [`CounterEnable`] Register based on underlying `scounteren` register.
+    pub fn read(&mut self) {
+        let mut x: u64;
+        unsafe {
+            asm!(
+                "csrr {x}, scounteren",
+                x = out(reg) x,
+            );
+        }
+        self.0 = x;
+    }
+
+    /// Write value of [`CounterEnable`] Register back to underlying `scounteren` register.
+    pub fn write(&self) {
+        let x: u64 = self.0;
+        unsafe {
+            asm!(
+                "csrw scounteren, {x}",
+                x = in(reg) x,
+            );
+        }
+    }
+
+    /// Check if [`CycleCounter`] register is enabled.
+    pub fn is_cycle_enabled(&self) -> bool {
+        (self.0 & (1 << 0)) != 0
+    }
+
+    /// Check if [`Time`] register is enabled.
+    pub fn is_time_enabled(&self) -> bool {
+        (self.0 & (1 << 1)) != 0
+    }
+
+    /// Check if [`InstructionRetiredCounter`] register is enabled.
+    pub fn is_instret_enabled(&self) -> bool {
+        (self.0 & (1 << 2)) != 0
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+
+    /// Enable/disable [`CycleCounter`] register.
+    pub fn set_cycle_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 0,
+            false => self.0 &= !(1 << 0),
+        };
+        self.write();
+    }
+
+    /// Enable/disable [`Time`] register.
+    pub fn set_time_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 1,
+            false => self.0 &= !(1 << 1),
+        };
+        self.write();
+    }
+
+    /// Enable/disable [`InstructionRetiredCounter`] register.
+    pub fn set_instret_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 2,
+            false => self.0 &= !(1 << 2),
+        };
+        self.write();
+    }
+}
+
+impl Display for CounterEnable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
