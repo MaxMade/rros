@@ -2,13 +2,20 @@
 
 use core::arch::asm;
 use core::marker::PhantomData;
+use core::mem;
 
 use crate::arch::cpu::CSR;
 use crate::arch::cpu::TP;
 use crate::arch::sstatus::SStatus;
+use crate::arch::stvec::STVec;
+use crate::arch::stvec::STVecMode;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;
+
+extern "C" {
+    fn __trap_entry();
+}
 
 /// Get architecture-specific [`page_size`](crate::arch::cpu::page_size).
 pub const fn page_size() -> usize {
@@ -47,6 +54,21 @@ pub unsafe fn disable_interrupts() {
     sstatus.read();
     sstatus.set_sie(false);
     sstatus.write();
+}
+
+/// Load address of `__trap_entry` into [`STVec`] regsiter.
+///
+/// # Caution
+/// This operation must be executed on every hart!
+pub fn load_trap_vector() {
+    /* Set stvec register */
+    let mut stvec = STVec::new(0);
+    stvec.read();
+    stvec.set_mode(STVecMode::Direct);
+    let base: u64 = unsafe { mem::transmute(__trap_entry as unsafe extern "C" fn()) };
+    assert!(base % 4 == 0);
+    stvec.set_base(base >> 2);
+    stvec.write();
 }
 
 #[derive(Debug)]

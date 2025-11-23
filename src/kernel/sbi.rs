@@ -5,7 +5,6 @@ use core::arch::asm;
 use core::error::Error;
 use core::fmt::Display;
 
-use crate::arch;
 use crate::kernel;
 use crate::kernel::address::Address;
 use crate::kernel::sbi::SBIFunctionID::BaseExtension;

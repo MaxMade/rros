@@ -112,7 +112,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     tp.write();
 
     // Initialize trap vector
-    trap::handlers::load_trap_vector();
+    kernel::cpu::load_trap_vector();
 
     // Initialize default trap handlers
     let level_initialization = trap::handlers::TrapHandlers::initialize(level_initialization);
@@ -180,7 +180,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     tp.write();
 
     // Initialize trap vector
-    trap::handlers::load_trap_vector();
+    kernel::cpu::load_trap_vector();
 
     // Initalize fine-grained kernel mapping
     mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();

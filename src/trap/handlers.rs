@@ -1,9 +1,5 @@
 //! Software-Abstractions for trap handlers.
 
-use core::mem;
-
-use crate::arch::cpu::STVec;
-use crate::arch::cpu::STVecMode;
 use crate::drivers::panic::PANIC;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelEpilogue;
@@ -223,18 +219,4 @@ pub trait TrapHandler: Sync {
         /* Nothing to do here */
         token
     }
-}
-
-/// Load address of `__trap_entry` into `stvect` regsiter.
-///
-/// # Caution
-/// This operation must be executed on every hart!
-pub fn load_trap_vector() {
-    /* Set stvec register */
-    let mut stvec = STVec::new();
-    stvec.set_mode(STVecMode::Direct);
-    let base: u64 = unsafe { mem::transmute(__trap_entry as unsafe extern "C" fn()) };
-    assert!(base % 4 == 0);
-    stvec.set_base(base >> 2);
-    stvec.write();
 }
