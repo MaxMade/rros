@@ -18,3 +18,15 @@ impl Display for HartID {
         write!(f, "{:#018x}", self.0)
     }
 }
+
+impl From<u64> for HartID {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl Into<u64> for HartID {
+    fn into(self) -> u64 {
+        self.0
+    }
+}

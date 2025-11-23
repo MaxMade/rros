@@ -3,6 +3,7 @@
 #![no_std]
 #![no_main]
 #![warn(missing_docs)]
+#![feature(error_in_core)]
 
 use core::panic::PanicInfo;
 
@@ -40,6 +41,23 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     // The provided pointer to the device tree blob is valid and thus safe to use.
     let (device_tree, level_initialization) =
         unsafe { DeviceTree::initialize(dtb_ptr, level_initialization) };
+
+    // Check availability of OpenSBI by querying specification version
+    if let Err(error) = kernel::sbi::specification_version() {
+        panic!("Unable to query OpenSBI version: {}", error);
+    }
+
+    // Check for OpenSBI Hart State Management Extension
+    let sbi_hsm_state =
+        match kernel::sbi::probe_extension(kernel::sbi::SBIExtensionID::HartStateManagement) {
+            Ok(state) => state,
+            Err(error) => {
+                panic!("Unable to state of OpenSBI HSM extension: {}", error);
+            }
+        };
+    if !sbi_hsm_state {
+        panic!("OpenSBI HSM Extension: Unsupported!\n");
+    }
 
     loop {}
 }
