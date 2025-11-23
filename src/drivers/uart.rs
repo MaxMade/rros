@@ -6,6 +6,8 @@
 //! - [(RISCV) RISC-V System, Booting, and
 //! Interrupts](https://marz.utk.edu/my-courses/cosc562/riscv/)
 use core::ptr;
+use core::sync::atomic::AtomicU16;
+use core::sync::atomic::Ordering;
 
 use crate::boot::device_tree::dt::DeviceTree;
 use crate::drivers::driver::Driver;
@@ -15,17 +17,55 @@ use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 
 use crate::drivers::driver::DriverError;
-use crate::sync::level::Level;
-use crate::sync::level::LevelDriver;
+use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
-use crate::sync::ticketlock::TicketlockDriver;
+use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
+use crate::trap::cause::Trap;
+use crate::trap::handlers::TrapHandler;
+use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
+/// Abstraction of a read key.
+pub struct Key(u16);
+
+impl Key {
+    const VALID_MASK: u16 = 1u16 << 5;
+
+    /// Create a new `Key` instance.
+    pub const fn new(character: u8, valid: bool) -> Self {
+        let value: u16 = match valid {
+            true => Self::VALID_MASK | character as u16,
+            false => character as u16,
+        };
+
+        Self(value)
+    }
+
+    /// Check if key is valid.
+    pub const fn valid(&self) -> bool {
+        self.0 & Self::VALID_MASK != 0
+    }
+
+    /// Get raw key.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic, if the `Key` is not [`valid`](Key::valid).
+    pub const fn raw(self) -> u8 {
+        if !self.valid() {
+            panic!("Unable to get raw key from invalid Key");
+        }
+
+        self.0 as u8
+    }
+}
+
 /// Global Uart instance.
-pub static UART: Uart = Uart::new();
+pub static UART: InitCell<Uart> = InitCell::new();
 
 /// Register offsets (in bytes) relative to start of configuration space.
+#[allow(unused)]
 #[derive(Debug)]
 enum RegisterOffset {
     /// Receive Holding Register.
@@ -96,6 +136,7 @@ enum RegisterOffset {
 }
 
 /// Parity mode.
+#[allow(unused)]
 #[derive(Debug)]
 enum ParityMode {
     /// No parity.
@@ -111,6 +152,7 @@ enum ParityMode {
 }
 
 /// Number of stop bits.
+#[allow(unused)]
 #[derive(Debug)]
 enum StopBits {
     One = 0b0,
@@ -118,6 +160,7 @@ enum StopBits {
 }
 
 /// Number of data bits.
+#[allow(unused)]
 #[derive(Debug)]
 enum DataBits {
     /// Five data bits.
@@ -131,6 +174,7 @@ enum DataBits {
 }
 
 /// Bit offset (within) `ISR` register to configure interrupts.
+#[allow(unused)]
 #[derive(Debug)]
 enum ISRBitOffset {
     /// Receive Holding Register Interrupt.
@@ -144,6 +188,7 @@ enum ISRBitOffset {
 }
 
 /// Bit offset (within) `LCR` register.
+#[allow(unused)]
 #[derive(Debug)]
 enum LCRBitOffset {
     /// Offset for number of data bits
@@ -159,6 +204,7 @@ enum LCRBitOffset {
 }
 
 /// Bit offset (within) `LSR` register.
+#[allow(unused)]
 #[derive(Debug)]
 enum LSRBitOffset {
     /// Offset for Set if RHR contains a character
@@ -180,8 +226,6 @@ enum LSRBitOffset {
 /// Driver for UART NS16550a.
 struct UARTNS16550a {
     config_space: MMIOSpace,
-    clock_freq: usize,
-    initialized: bool,
 }
 
 impl UARTNS16550a {
@@ -191,8 +235,6 @@ impl UARTNS16550a {
         unsafe {
             UARTNS16550a {
                 config_space: MMIOSpace::new(VirtualAddress::new(ptr::null_mut()), 0),
-                clock_freq: 0,
-                initialized: false,
             }
         }
     }
@@ -376,12 +418,22 @@ impl UARTNS16550a {
 }
 
 /// Locked version of driver for UART NS16550a.
-pub struct Uart(TicketlockDriver<UARTNS16550a>);
+pub struct Uart {
+    locked_ns1655a: IRQTicketlock<UARTNS16550a>,
+    clock_freq: usize,
+    interrupt: Interrupt,
+    raw_key: AtomicU16,
+}
 
 impl Uart {
     /// Create a new `Uart` instance.
     pub const fn new() -> Self {
-        Uart(TicketlockDriver::new(UARTNS16550a::new()))
+        Uart {
+            locked_ns1655a: IRQTicketlock::new(UARTNS16550a::new()),
+            clock_freq: 0,
+            interrupt: Interrupt::ExternalInterrupt,
+            raw_key: AtomicU16::new(0),
+        }
     }
 }
 
@@ -400,7 +452,8 @@ impl Driver for Uart {
         };
 
         // Get locked driver
-        let mut driver = UART.0.init_lock(token);
+        let (mut uart, token) = UART.as_mut(token);
+        let mut driver = uart.locked_ns1655a.init_lock(token);
 
         // Get address and size of configuration space
         let reg_property = match device.property_iter().filter(|p| p.name == "reg").next() {
@@ -451,7 +504,7 @@ impl Driver for Uart {
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
-        driver.clock_freq = clock_freq;
+        uart.clock_freq = clock_freq;
 
         // Read interrupt configuration
         let interrupts = match device
@@ -465,7 +518,13 @@ impl Driver for Uart {
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
-        let interrupts = interrupts.into_interrupt_iter();
+        let mut interrupts = interrupts.into_interrupt_iter();
+
+        // Process (single) interrupt
+        let interrupt = interrupts.next().unwrap();
+        let interrupt = Interrupt::Interrupt(u64::from(interrupt));
+        uart.interrupt = interrupt;
+        assert!(interrupts.next().is_none());
 
         // Disable all interrupts
         driver.disable_rhri();
@@ -486,26 +545,25 @@ impl Driver for Uart {
         let token = driver.init_unlock();
 
         // Configure interrupt controller
-        let mut token = Some(token);
-        for interrupt in interrupts {
-            let interrupt = Interrupt::Interrupt(u64::from(interrupt));
-            token = Some(INTERRUPT_CONTROLLER.configure(interrupt, token.take().unwrap()));
-            token = Some(INTERRUPT_CONTROLLER.unmask(interrupt, token.take().unwrap()));
-        }
+        let token = INTERRUPT_CONTROLLER.configure(interrupt, token);
+        let token = INTERRUPT_CONTROLLER.unmask(interrupt, token);
 
-        return Ok(token.unwrap());
+        // Register handler
+        let (trap_handlers, token) = TRAP_HANDLERS.as_mut(token);
+        let (uart, token) = UART.as_mut(token);
+        let token = trap_handlers.register(Trap::Interrupt(interrupt), uart, token);
+
+        // Finalize initialization
+        let token = unsafe { UART.finanlize(token) };
+
+        return Ok(token);
     }
 }
 
 impl Uart {
-    /// Write single byte `value` using serial interface.
-    pub fn write(
-        &self,
-        value: u8,
-        token: LevelDriver,
-    ) -> Result<LevelDriver, (DriverError, LevelDriver)> {
-        // Get locked driver
-        let (mut driver, token) = self.0.lock(token);
+    /// Write single byte `value` using serial interface without Level validation.
+    pub unsafe fn write_unchecked(&self, value: u8) -> Result<(), DriverError> {
+        let driver = self.locked_ns1655a.as_ptr().as_mut().unwrap();
 
         // Wait for device to finish previous transmission
         loop {
@@ -523,21 +581,58 @@ impl Uart {
             .store(RegisterOffset::RHR as usize, value)
             .unwrap();
 
+        Ok(())
+    }
+
+    /// Try to read single byte from serial interface.
+    pub fn read(&self) -> Result<u8, DriverError> {
+        let key = Key(self.raw_key.swap(0, Ordering::Relaxed));
+        if !key.valid() {
+            return Err(DriverError::NoDataAvailable);
+        }
+
+        return Ok(key.raw());
+    }
+}
+
+impl TrapHandler for Uart {
+    fn cause() -> crate::trap::cause::Trap
+    where
+        Self: Sized,
+    {
+        Trap::Interrupt(UART.as_ref().interrupt)
+    }
+
+    fn prologue(
+        &self,
+        token: crate::sync::level::LevelPrologue,
+    ) -> (bool, crate::sync::level::LevelPrologue) {
+        // Lock driver
+        let (driver, token) = self.locked_ns1655a.lock(token);
+
+        // Wait for device to finish previous transmission
+        loop {
+            let lsr: u8 = driver
+                .config_space
+                .load(RegisterOffset::LSR as usize)
+                .unwrap();
+            if (lsr & (1 << LSRBitOffset::RHRNonEmpty as usize)) != 0 {
+                break;
+            }
+        }
+
+        // Read key
+        let raw_key: u8 = driver
+            .config_space
+            .load(RegisterOffset::RHR as usize)
+            .unwrap();
+
+        // Unlock driver
         let token = driver.unlock(token);
 
-        return Ok(token);
-    }
+        // Save key
+        self.raw_key.store(raw_key as u16, Ordering::Relaxed);
 
-    /// Write single byte `value` using serial interface without Level validation.
-    pub unsafe fn write_unchecked(&self, value: u8) -> Result<(), DriverError> {
-        let token = LevelDriver::create();
-        match self.write(value, token) {
-            Ok(_) => return Ok(()),
-            Err((error, _)) => return Err(error),
-        }
-    }
-
-    fn read(&self) -> Result<u8, DriverError> {
-        todo!()
+        (false, token)
     }
 }

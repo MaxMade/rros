@@ -143,7 +143,8 @@ impl Printer {
         }
         for i in 0..*len {
             unsafe {
-                UART.write_unchecked(buffer[i])
+                UART.as_ref()
+                    .write_unchecked(buffer[i])
                     .map_err(|_| Error::default())?
             };
         }

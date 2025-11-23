@@ -17,7 +17,6 @@ use crate::kernel::cpu;
 use crate::kernel::cpu::ExecutionMode;
 use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
-use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPrologue;
 use crate::sync::ticketlock::IRQTicketlock;

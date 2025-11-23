@@ -18,12 +18,15 @@ pub trait Driver {
 pub enum DriverError {
     /// Result of attempting to initialize driver with non-comptible device node.
     NonCompatibleDevice,
+    /// Failed attempt to request data from device.
+    NoDataAvailable,
 }
 
 impl Display for DriverError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             DriverError::NonCompatibleDevice => write!(f, "Non-comptible device node"),
+            DriverError::NoDataAvailable => write!(f, "No data available"),
         }
     }
 }

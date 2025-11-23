@@ -69,7 +69,7 @@ impl TrapHandlers {
         match trap {
             Trap::Interrupt(interrupt) => {
                 let index: usize = interrupt.into();
-                if handlers.interrupt_handlers[index] as *const _ == panic as *const _ {
+                if handlers.interrupt_handlers[index] as *const _ != panic as *const _ {
                     panic!(
                         "Unable to overwrite handler for {} at trap handlers interface",
                         interrupt
@@ -79,7 +79,7 @@ impl TrapHandlers {
             }
             Trap::Exception(exception) => {
                 let index: usize = exception.into();
-                if handlers.exception_handlers[index] as *const _ == panic as *const _ {
+                if handlers.exception_handlers[index] as *const _ != panic as *const _ {
                     panic!(
                         "Unable to overwrite handler for {} at trap handlers interface",
                         exception

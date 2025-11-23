@@ -302,6 +302,15 @@ impl<T> IRQTicketlock<T> {
     pub fn into_inner(self) -> T {
         self.lock.into_inner()
     }
+
+    /// Get raw pointer underlying data **without** acquiring the lock or strict hierarchical
+    /// constraints.
+    ///
+    /// # Safety
+    /// This function is per definition `unsafe` and it is the responsibility of
+    pub const unsafe fn as_ptr(&self) -> *mut T {
+        self.lock.as_ptr()
+    }
 }
 
 unsafe impl<T: Send> Sync for IRQTicketlock<T> {}
