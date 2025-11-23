@@ -17,8 +17,8 @@ use crate::kernel::sbi::SBIFunctionID::HartStateManagementExtension;
 /// * `fid`: Function ID.
 fn sbi_ecall_0(eid: SBIExtensionID, fid: SBIFunctionID) -> Result<isize, SBIError> {
     /* Perform ecall */
-    let mut error = 0;
-    let mut value = 0;
+    let mut error: isize;
+    let mut value: isize;
     unsafe {
         asm!(
             "ecall",
@@ -44,7 +44,7 @@ fn sbi_ecall_0(eid: SBIExtensionID, fid: SBIFunctionID) -> Result<isize, SBIErro
 fn sbi_ecall_1(eid: SBIExtensionID, fid: SBIFunctionID, arg0: isize) -> Result<isize, SBIError> {
     /* Perform ecall */
     let mut error = arg0 as isize;
-    let mut value = 0isize;
+    let mut value: isize;
     unsafe {
         asm!(
             "ecall",
