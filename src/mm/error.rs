@@ -8,12 +8,18 @@ use core::fmt::Display;
 pub enum MemoryError {
     /// Out-of-Memory.
     OutOfMemory,
+    /// Address is already in use.
+    AddressAlreadyInUse,
+    /// No such address.
+    NoSuchAddress,
 }
 
 impl Display for MemoryError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             MemoryError::OutOfMemory => write!(f, "Out of Memory"),
+            MemoryError::AddressAlreadyInUse => write!(f, "Address already in Use"),
+            MemoryError::NoSuchAddress => write!(f, "No such Address"),
         }
     }
 }
