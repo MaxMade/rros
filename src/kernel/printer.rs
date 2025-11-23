@@ -145,6 +145,7 @@ impl Printer {
                     .map_err(|_| Error::default())?
             };
         }
+        *len = 0;
         self.serving.fetch_add(1, Ordering::Release);
         if interrupts_enabled {
             unsafe { cpu::enable_interrupts() };
