@@ -45,6 +45,9 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         &self,
         token: UpperLevel,
     ) -> (TicketlockGuard<'_, T, UpperLevel, LowerLevel>, LowerLevel) {
+        // Consume UpperLevel token
+        let _ = token;
+
         // Get ticket
         let ticket = self.ticket.fetch_add(1, Ordering::Relaxed);
 
@@ -60,7 +63,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
             phantom: PhantomData,
         };
 
-        // Create token
+        // Produce LowerLevel token
         //
         // # Safety
         // This Ticketlock synchronization primitive implements the strict hierarchical level per
@@ -76,6 +79,9 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         &self,
         token: LevelInitialization,
     ) -> TicketlockGuard<'_, T, LevelInitialization, LevelInitialization> {
+        // Consume UpperLevel token
+        let _ = token;
+
         // Create ticket lock guard
         TicketlockGuard {
             counter: &self.counter,
@@ -107,7 +113,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
             phantom: PhantomData,
         };
 
-        // Create token
+        // Produce LowerLevel token
         //
         // # Safety
         // This Ticketlock synchronization primitive implements the strict hierarchical level per
@@ -126,6 +132,15 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
     /// Consume this [`Ticketlock`] and unwraps the underlying data.
     pub fn into_inner(self) -> T {
         self.data.into_inner()
+    }
+
+    /// Get raw pointer underlying data **without** acquiring the lock or strict hierarchical
+    /// constraints.
+    ///
+    /// # Safety
+    /// This function is per definition `unsafe` and it is the responsibility of
+    pub const unsafe fn as_ptr(&self) -> *mut T {
+        self.data.get()
     }
 }
 
@@ -150,10 +165,13 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level> TicketlockGuard<'a, T, UpperLe
     /// Release lock while consume `LowerLevel` `token` (and producing `UpperLevel` `token`).
     #[inline]
     pub fn unlock(self, token: LowerLevel) -> UpperLevel {
+        // Consume UpperLevel token
+        let _ = token;
+
         // Release lock
         self.counter.fetch_add(1, Ordering::Release);
 
-        // Create token
+        // Produce LowerLevel token
         //
         // # Safety
         // This Ticketlock synchronization primitive implements the strict hierarchical level per

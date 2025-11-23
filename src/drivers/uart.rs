@@ -15,11 +15,13 @@ use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 
 use crate::drivers::driver::DriverError;
+use crate::sync::level::Level;
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::TicketlockDriver;
 
-static UART: Uart = Uart::new();
+/// Global Uart instance.
+pub static UART: Uart = Uart::new();
 
 /// Register offsets (in bytes) relative to start of configuration space.
 #[derive(Debug)]
@@ -470,14 +472,18 @@ impl Driver for Uart {
 }
 
 impl Uart {
-    fn write(&self, value: u8, token: LevelDriver) -> Result<(), DriverError> {
+    /// Write single byte `value` using serial interface.
+    pub fn write(
+        &self,
+        value: u8,
+        token: LevelDriver,
+    ) -> Result<LevelDriver, (DriverError, LevelDriver)> {
         /* Get locked driver */
-        let mut driver = self.0.lock(token);
+        let (mut driver, token) = self.0.lock(token);
 
         /* Wait for device to finish previous transmission */
         loop {
             let lsr: u8 = driver
-                .0
                 .config_space
                 .load(RegisterOffset::LSR as usize)
                 .unwrap();
@@ -487,12 +493,22 @@ impl Uart {
         }
 
         driver
-            .0
             .config_space
             .store(RegisterOffset::RHR as usize, value)
             .unwrap();
 
-        return Ok(());
+        let token = driver.unlock(token);
+
+        return Ok(token);
+    }
+
+    /// Write single byte `value` using serial interface without Level validation.
+    pub unsafe fn write_unchecked(&self, value: u8) -> Result<(), DriverError> {
+        let token = LevelDriver::create();
+        match self.write(value, token) {
+            Ok(_) => return Ok(()),
+            Err((error, _)) => return Err(error),
+        }
     }
 
     fn read(&self) -> Result<u8, DriverError> {
