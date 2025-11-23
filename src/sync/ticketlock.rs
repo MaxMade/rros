@@ -356,3 +356,15 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level> DerefMut
         self.guard.deref_mut()
     }
 }
+
+/// Specialized [`IRQTicketlock`] for locking `Epilogue` level.
+pub type IRQTicketlockEpilogue<T> = Ticketlock<T, LevelEpilogue, LevelPrologue>;
+
+/// Specialized [`IRQTicketlock`] for locking `Driver` level.
+pub type IRQTicketlockDriver<T> = Ticketlock<T, LevelDriver, LevelPrologue>;
+
+/// Specialized [`IRQTicketlock`] for locking `Scheduler` level.
+pub type IRQTicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelPrologue>;
+
+/// Specialized [`IRQTicketlock`] for locking `Memory` level.
+pub type IRQTicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;

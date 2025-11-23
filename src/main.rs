@@ -20,7 +20,23 @@ pub mod trap;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    printk!(kernel::printer::LogLevel::Emergency, "Panic: {}!", info);
+    // Detect potential recursion!
+    static RECURSION_DETECTION: core::sync::atomic::AtomicBool =
+        core::sync::atomic::AtomicBool::new(false);
+    while !RECURSION_DETECTION
+        .compare_exchange(
+            false,
+            true,
+            core::sync::atomic::Ordering::Relaxed,
+            core::sync::atomic::Ordering::Relaxed,
+        )
+        .is_ok()
+    {
+        // First hart will print emergency message
+        printk!(kernel::printer::LogLevel::Emergency, "Panic: {}!", info);
+    }
+
+    // Dying...
     kernel::cpu::die();
 }
 
@@ -69,6 +85,13 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
 
     // Initialize trap vector
     let level_initialization = trap::handlers::load_trap_vector(level_initialization);
+
+    // Initialize interrupt controller
+    let level_initialization =
+        match trap::intc::InterruptController::initiailize(level_initialization) {
+            Ok(token) => token,
+            Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
+        };
 
     // Initialize serial driver
     let level_initialization = match drivers::uart::Uart::initiailize(level_initialization) {

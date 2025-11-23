@@ -67,7 +67,7 @@ impl DeviceTree {
         for node in self.parser.node_iter() {
             if let Some(property) = node.property_iter().find(|p| p.name == "compatible") {
                 if let PropertyValue::String(value) = property.get_value() {
-                    if value == compatible {
+                    if value.contains(compatible) {
                         return Some(node);
                     }
                 }

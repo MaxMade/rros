@@ -126,3 +126,18 @@ pub fn lookup_hart_id(logical_id: LogicalCPUID) -> HartID {
 
     cpu_map.map[usize::try_from(logical_id.0).unwrap()]
 }
+
+/// Get number of online harts.
+pub fn online_harts() -> usize {
+    CPU_MAP.as_ref().idx
+}
+
+/// Return iterator over all registered harts, yielding [`LogicalCPUID`]s and [`HartID`]s.
+pub fn iter() -> impl Iterator<Item = (LogicalCPUID, HartID)> {
+    CPU_MAP
+        .as_ref()
+        .map
+        .iter()
+        .enumerate()
+        .map(|(i, hart_id)| (LogicalCPUID::new(i), *hart_id))
+}

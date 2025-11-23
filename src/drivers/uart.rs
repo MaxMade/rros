@@ -179,6 +179,7 @@ enum LSRBitOffset {
 struct UARTNS16550a {
     config_space: MMIOSpace,
     clock_freq: usize,
+    initialized: bool,
 }
 
 impl UARTNS16550a {
@@ -189,6 +190,7 @@ impl UARTNS16550a {
             UARTNS16550a {
                 config_space: MMIOSpace::new(VirtualAddress::new(ptr::null_mut()), 0),
                 clock_freq: 0,
+                initialized: false,
             }
         }
     }

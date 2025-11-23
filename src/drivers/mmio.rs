@@ -18,6 +18,12 @@ impl MMIOSpace {
         Self { addr, size }
     }
 
+    /// Relocate memory-mapped IO space.
+    pub unsafe fn relocate(&mut self, addr: address::VirtualAddress<u8>, size: usize) {
+        self.addr = addr;
+        self.size = size;
+    }
+
     /// Load value from memory-mapped IO space while performing required bounds checks.
     ///
     /// * `offset`: Byte offset within memory space.
