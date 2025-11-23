@@ -16,5 +16,11 @@ CONFIG_LOG_LEVEL:
   value: crate::kernel::printer::LogLevel::Trace
   type: crate::kernel::printer::LogLevel
   description: |
-    Log level filtering used by [`printk`](crate::kernel::printer::Printer)..
+    Log level filtering used by [`printk`](crate::kernel::printer::Printer).
+
+CONFIG_TIMER_INTERVAL:
+  value: crate::kernel::time::MilliSecond::new(100)
+  type: crate::kernel::time::MilliSecond
+  description: |
+    Default timer interrupt interval in `ms`.
 ...
