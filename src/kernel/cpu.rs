@@ -478,6 +478,60 @@ impl SIE {
         }
     }
 
+    /// Check if external interrupts are enabled.
+    pub fn is_external_interrupt_enabled(&self) -> bool {
+        self.0 & (1 << 9) != 0
+    }
+
+    /// Check if timer interrupts are enabled.
+    pub fn is_timer_interrupt_enabled(&self) -> bool {
+        self.0 & (1 << 5) != 0
+    }
+
+    /// Check if software interrupts are enabled.
+    pub fn is_software_interrupt_enabled(&self) -> bool {
+        self.0 & (1 << 1) != 0
+    }
+
+    /// Mark external interrupts as enabled.
+    pub fn mark_external_interrupt_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 9,
+            false => self.0 &= !(1 << 9),
+        };
+        self.write();
+    }
+
+    /// Mark timer interrupts as enabled.
+    pub fn mark_timer_interrupt_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 5,
+            false => self.0 &= !(1 << 5),
+        };
+        self.write();
+    }
+
+    /// Mark software interrupts as enabled.
+    pub fn mark_software_interrupt_enabled(&mut self, enabled: bool) {
+        match enabled {
+            true => self.0 |= 1 << 1,
+            false => self.0 &= !(1 << 1),
+        };
+        self.write();
+    }
+
+    /// Set all enable-bits for interrupt and write updated value back to register.
+    pub fn enable_all_interrupts(&mut self) {
+        self.0 = u64::MAX;
+        self.write();
+    }
+
+    /// Clear all enable-bits for interrupt and write updated value back to register.
+    pub fn disable_all_interrupts(&mut self) {
+        self.0 = 0u64;
+        self.write();
+    }
+}
     /// Set all enable-bits for interrupt and write updated value back to register.
     pub fn enable_all_interrupts(&mut self) {
         self.0 = u64::MAX;
