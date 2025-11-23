@@ -1,0 +1,15 @@
+[build]
+target = "riscv64gc-unknown-none-elf"
+
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+    "-Clink-arg=-T./linker.ld",
+    "-Clinker-flavor=ld.lld",
+    "-Clinker=rust-lld",
+	# "-Ccode-model=large"
+	"-Cforce-frame-pointers=yes",
+	"-Cno-redzone=yes",
+	"-Cforce-frame-pointers=yes",
+	"-Crelocation-model=pic",
+	"-Csoft-float=yes",
+]

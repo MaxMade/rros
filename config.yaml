@@ -1,0 +1,14 @@
+---
+CONFIG_MAX_CPU_NUM:
+  value: 8
+  type: usize
+  description: |
+    Maximum number of supported CPUs.
+
+
+CONFIG_PAGE_SIZE:
+  value: 4096
+  type: usize
+  description: |
+    Page size.
+...
