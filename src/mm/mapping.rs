@@ -1,12 +1,13 @@
 //! Kernel APIs to create/update/revoke mappings.
 
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
+use crate::kernel::compiler;
+use crate::kernel::cpu;
 use crate::kernel::cpu::SATP;
-use crate::kernel::{compiler, cpu};
 use crate::mm::error::MemoryError;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;
-use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging, LevelInitialization};
-use crate::sync::level::{LevelMapping, LevelPaging};
+use crate::sync::level::{Adapter, AdapterGuard, AdapterMappingPaging};
+use crate::sync::level::{LevelInitialization, LevelMapping, LevelPaging};
 use crate::sync::ticketlock::TicketlockMapping;
 use core::ffi::c_void;
 
@@ -405,6 +406,54 @@ impl VirtualMemorySystem {
         }
 
         Ok(token.unwrap())
+    }
+
+    /// Create a new (readable/writable for kernel) mapping for `phys_addr` associated driver memory-mapped IO space.
+    pub fn early_create_dev(
+        &self,
+        phys_addr: PhysicalAddress<c_void>,
+        size: usize,
+        token: LevelInitialization,
+    ) -> Result<(VirtualAddress<c_void>, LevelInitialization), (MemoryError, LevelInitialization)>
+    {
+        // Calculate address shift
+        let offset =
+            compiler::data_segment_virt_start().addr() - compiler::data_segment_phys_start().addr();
+
+        // Calculate aligned size virtual/physical address and size
+        let size = size + (phys_addr.addr() % cpu::page_size());
+        let size = (size + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+
+        let phys_raw_addr = (phys_addr.addr() + cpu::page_size() - 1) & !(cpu::page_size() - 1);
+        let mut virt_drag_addr = VirtualAddress::new((phys_raw_addr + offset) as *mut c_void);
+        let mut phys_drag_addr = PhysicalAddress::new(phys_raw_addr as *mut c_void);
+
+        let mut token = Some(token);
+        for _ in 0..size / cpu::page_size() {
+            match self.early_create(
+                phys_drag_addr,
+                virt_drag_addr,
+                Protection::RW,
+                Mode::Kernel,
+                token.unwrap(),
+            ) {
+                Ok(t) => {
+                    token = Some(t);
+                }
+                Err((err, _)) => {
+                    todo!(
+                        "Handle error \"{}\" during Mapping::early_create_dev correctly",
+                        err
+                    );
+                }
+            };
+
+            virt_drag_addr = unsafe { virt_drag_addr.byte_add(cpu::page_size()) };
+            phys_drag_addr = unsafe { phys_drag_addr.byte_add(cpu::page_size()) };
+        }
+
+        let virt_addr = VirtualAddress::new((phys_addr.addr() + offset) as *mut c_void);
+        Ok((virt_addr, token.unwrap()))
     }
 
     /// Update `protection`/`mode` of a given `virt_addr`.
