@@ -10,8 +10,14 @@ use core::sync::atomic::Ordering;
 
 use crate::sync::level::Level;
 
+use crate::sync::level::LevelDriver;
+use crate::sync::level::LevelEpilogue;
+use crate::sync::level::LevelMemory;
+use crate::sync::level::LevelPrologue;
+use crate::sync::level::LevelScheduler;
+
 /// Generic Ticketlock
-struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
+pub struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
     data: UnsafeCell<T>,
     ticket: AtomicUsize,
     counter: AtomicUsize,
@@ -20,11 +26,11 @@ struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
 
 impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLevel> {
     /// Create a new `Ticketlock`
-    const fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         // Sanity check:
         //
         // (UpperLevel::LowerLevel == LowerLevel) && (LowerLeve::HeigherLevel == UpperLevel)
-        assert!(UpperLevel::level() == LowerLevel::level() + 1);
+        assert!(UpperLevel::level() > LowerLevel::level());
 
         Self {
             data: UnsafeCell::new(value),
@@ -35,7 +41,8 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
     }
 
     /// Acquire lock while consume `UpperLevel` `token` (and producing `LowerLevel` `token`).
-    fn lock(
+    #[inline]
+    pub fn lock(
         &self,
         token: UpperLevel,
     ) -> (TicketlockGuard<'_, T, UpperLevel, LowerLevel>, LowerLevel) {
@@ -64,7 +71,8 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         return (guard, token);
     }
 
-    fn try_lock(
+    #[inline]
+    pub fn try_lock(
         &self,
         token: UpperLevel,
     ) -> Result<(TicketlockGuard<'_, T, UpperLevel, LowerLevel>, LowerLevel), UpperLevel> {
@@ -96,12 +104,13 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
     }
 
     /// Return `true` if the lock is currently held.
-    fn is_locked(&self) -> bool {
+    #[inline]
+    pub fn is_locked(&self) -> bool {
         self.counter.load(Ordering::Relaxed) == self.ticket.load(Ordering::Relaxed)
     }
 
     /// Consume this [`TicketMutex`] and unwraps the underlying data.
-    fn into_inner(self) -> T {
+    pub fn into_inner(self) -> T {
         self.data.into_inner()
     }
 }
@@ -125,7 +134,8 @@ struct TicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
 
 impl<'a, T, UpperLevel: Level, LowerLevel: Level> TicketlockGuard<'a, T, UpperLevel, LowerLevel> {
     /// Release lock while consume `LowerLevel` `token` (and producing `UpperLevel` `token`).
-    fn unlock(self, token: LowerLevel) -> UpperLevel {
+    #[inline]
+    pub fn unlock(self, token: LowerLevel) -> UpperLevel {
         // Release lock
         self.counter.fetch_add(1, Ordering::Release);
 
@@ -156,3 +166,15 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level> DerefMut
         &mut *self.data
     }
 }
+
+/// Specialized [`Ticketlock`] for locking `Epilogue` level.
+pub type TicketlockEpilogue<T> = Ticketlock<T, LevelEpilogue, LevelDriver>;
+
+/// Specialized [`Ticketlock`] for locking `Driver` level.
+pub type TicketlockDriver<T> = Ticketlock<T, LevelDriver, LevelScheduler>;
+
+/// Specialized [`Ticketlock`] for locking `Scheduler` level.
+pub type TicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelMemory>;
+
+/// Specialized [`Ticketlock`] for locking `Memory` level.
+pub type TicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;
