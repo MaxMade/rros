@@ -101,10 +101,10 @@ fn compile_assembly_file(file: &path::Path, configs_options: &[Config]) {
     /* Search suitable C compiler */
     let mut cc = None;
     let common_ccs = [
-        path::Path::new("/bin/gcc-riscv64-unknown-elf"),
         path::Path::new("/bin/riscv64-elf-gcc"),
-        path::Path::new("/usr/bin/gcc-riscv64-unknown-elf"),
+        path::Path::new("/bin/riscv64-unknown-elf-gcc"),
         path::Path::new("/usr/bin/riscv64-elf-gcc"),
+        path::Path::new("/usr/bin/riscv64-unknown-elf-gcc"),
     ];
     for common_cc in common_ccs {
         if common_cc.exists() {
