@@ -71,8 +71,18 @@ _start:
 	slli t1, t1, 32
 	or sp, sp, t1
 
-// Create identity mapping for lower 4 GiB
-.setup_paging:
+	// Zero .bss
+	la t0, _bss_start
+	mv t1, t0
+	la t2, _bss_end
+.clear_bss_head:
+	beq t1, t2, .clear_bss_out
+	sb x0, (t1)
+	addi t1, t1, 1
+	j .clear_bss_head
+.clear_bss_out:
+
+	// Create identity mapping for lower 4 GiB
 	// Load address of pte
 	la t0, pte
 
