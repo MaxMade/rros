@@ -43,6 +43,19 @@ fn panic(info: &PanicInfo) -> ! {
     kernel::cpu::die();
 }
 
+fn synchronize(token: sync::level::LevelEpilogue) -> sync::level::LevelEpilogue {
+    static COUNTER: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+    COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+
+    while COUNTER.load(core::sync::atomic::Ordering::Relaxed) % kernel::cpu_map::online_harts() != 0
+    {
+        core::hint::spin_loop();
+    }
+
+    token
+}
+
 /// Kernel initialization routine entered by boot processor
 #[no_mangle]
 pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -> ! {
@@ -137,6 +150,9 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     // Enter epilogue level
     let level_epilogue = epilogue::try_enter().unwrap();
 
+    // Synchronize with remaining harts
+    let level_epilogue = synchronize(level_epilogue);
+
     // Enable interrupts
     unsafe {
         kernel::cpu::unmask_all_interrupts();
@@ -170,6 +186,9 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Enter epilogue level
     let level_epilogue = epilogue::try_enter().unwrap();
+
+    // Synchronize with remaining harts
+    let level_epilogue = synchronize(level_epilogue);
 
     // Enable interrupts
     unsafe {
