@@ -4,6 +4,7 @@ pub mod cpu;
 pub mod cycle;
 pub mod inst_ret;
 pub mod mode;
+pub mod register;
 pub mod satp;
 pub mod scause;
 pub mod scounteren;
