@@ -52,11 +52,11 @@ impl TP {
 
     /// Load current value from `tp` register.
     pub fn read(&mut self) {
-        let mut x: u64 = 0;
+        let mut x: u64;
         unsafe {
             asm!(
                 "mv {x}, tp",
-                x = out(reg) _,
+                x = out(reg) x,
             );
         }
         self.0 = x;
