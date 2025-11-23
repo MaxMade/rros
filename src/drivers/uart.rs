@@ -14,6 +14,7 @@ use crate::boot::device_tree::dt::DeviceTree;
 use crate::drivers::driver::Driver;
 
 use crate::drivers::mmio::MMIOSpace;
+use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 
@@ -26,7 +27,6 @@ use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 use crate::trap::handlers::TrapHandler;
 use crate::trap::handlers::TrapHandlers;
-use crate::trap::handlers::TRAP_HANDLERS;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
 /// Abstraction of a read key.
@@ -454,21 +454,16 @@ impl Driver for Uart {
             None => return Err((DriverError::NonCompatibleDevice, token)),
         };
 
-        // Get locked driver
-        let mut uart = UART.get_mut(token);
-
         // Get address and size of configuration space
         let reg_property = match device.property_iter().filter(|p| p.name == "reg").next() {
             Some(reg_property) => reg_property,
             None => {
-                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
         let (raw_address, raw_length) = match reg_property.into_addr_length_iter().next() {
             Some((raw_address, raw_length)) => (raw_address, raw_length),
             None => {
-                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -495,7 +490,6 @@ impl Driver for Uart {
         {
             Some(clock_freq) => clock_freq,
             None => {
-                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
@@ -507,11 +501,9 @@ impl Driver for Uart {
                 clock_freq as usize
             }
             _ => {
-                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
-        uart.clock_freq = clock_freq;
 
         // Read interrupt configuration
         let interrupts = match device
@@ -521,15 +513,18 @@ impl Driver for Uart {
         {
             Some(interrupts) => interrupts,
             None => {
-                let token = uart.destroy();
                 return Err((DriverError::NonCompatibleDevice, token));
             }
         };
         let mut interrupts = interrupts.into_interrupt_iter();
-
-        // Process (single) interrupt
         let interrupt = interrupts.next().unwrap();
         let interrupt = Interrupt::Interrupt(u64::from(interrupt));
+
+        // Get locked driver
+        let mut uart = UART.get_mut(token);
+
+        // Write gathered information
+        uart.clock_freq = clock_freq;
         uart.interrupt = interrupt;
         assert!(interrupts.next().is_none());
 
