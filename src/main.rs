@@ -23,7 +23,7 @@ fn panic(info: &PanicInfo) -> ! {
     // Detect potential recursion!
     static RECURSION_DETECTION: core::sync::atomic::AtomicBool =
         core::sync::atomic::AtomicBool::new(false);
-    while !RECURSION_DETECTION
+    while RECURSION_DETECTION
         .compare_exchange(
             false,
             true,
