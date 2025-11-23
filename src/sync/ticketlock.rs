@@ -14,12 +14,13 @@ use crate::sync::level::Level;
 
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelEpilogue;
+use crate::sync::level::LevelInitialization;
+use crate::sync::level::LevelLockedPrologue;
+use crate::sync::level::LevelMapping;
 use crate::sync::level::LevelMemory;
+use crate::sync::level::LevelPaging;
 use crate::sync::level::LevelPrologue;
 use crate::sync::level::LevelScheduler;
-
-use super::level::LevelInitialization;
-use super::level::LevelLockedPrologue;
 
 /// Generic Ticketlock
 pub struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
@@ -216,7 +217,13 @@ pub type TicketlockDriver<T> = Ticketlock<T, LevelDriver, LevelScheduler>;
 pub type TicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelMemory>;
 
 /// Specialized [`Ticketlock`] for locking `Memory` level.
-pub type TicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;
+pub type TicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelMapping>;
+
+/// Specialized [`Ticketlock`] for locking `Mapping` level.
+pub type TicketlockMapping<T> = Ticketlock<T, LevelMapping, LevelPaging>;
+
+/// Specialized [`Ticketlock`] for locking `Paging` level.
+pub type TicketlockPaging<T> = Ticketlock<T, LevelPaging, LevelPrologue>;
 
 /// Interrupt-safe Ticketlock
 pub struct IRQTicketlock<T> {
