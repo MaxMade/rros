@@ -4,6 +4,7 @@
 
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
+use crate::kernel::cpu;
 
 const PHYSICAL_PAGE_NUMBER_SIZE: u64 = 1 << 44;
 
@@ -139,20 +140,20 @@ impl PageTableEntry {
         self.0 &= !(1 << Offset::D as u64);
     }
 
-    /// Get physical page number of page-table entry (`PPN` bits)
-    pub fn get_physical_page_number<T>(&self) -> PhysicalAddress<T> {
-        let raw_addr = (self.0 >> Offset::PPN as u64) & (PHYSICAL_PAGE_NUMBER_SIZE - 1);
-        PhysicalAddress::new(raw_addr as *mut T)
+    /// Get physical page of page-table entry (`PPN` bits)
+    pub fn get_physical_page<T>(&self) -> PhysicalAddress<T> {
+        let ppn = (self.0 >> Offset::PPN as u64) & (PHYSICAL_PAGE_NUMBER_SIZE - 1);
+        PhysicalAddress::new((ppn as usize * cpu::page_size()) as *mut T)
     }
 
-    /// Get physical page number of page-table entry (`PPN` bits)
-    pub fn set_physical_page_number<T>(&mut self, phys_addr: PhysicalAddress<T>) {
-        let raw_addr = phys_addr.as_ptr() as u64;
-        if raw_addr >= PHYSICAL_PAGE_NUMBER_SIZE {
+    /// Get physical page of page-table entry (`PPN` bits)
+    pub fn set_physical_page<T>(&mut self, phys_addr: PhysicalAddress<T>) {
+        let ppn = phys_addr.addr() as u64 / cpu::page_size() as u64;
+        if ppn >= PHYSICAL_PAGE_NUMBER_SIZE {
             panic!("Only 44-bits physical addresses are supported!");
         }
 
         self.0 &= !(PHYSICAL_PAGE_NUMBER_SIZE - 1 << Offset::PPN as u64);
-        self.0 |= raw_addr << Offset::PPN as u64;
+        self.0 |= ppn << Offset::PPN as u64;
     }
 }
