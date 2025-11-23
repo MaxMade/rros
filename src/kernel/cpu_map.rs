@@ -14,12 +14,17 @@ use super::sbi;
 ///
 /// Logical CPU IDs implement another way to address hardware threads (aka. CPUs). Hereby, these
 /// IDs are assigned sequentially, and thus must be in range `[0, MAX_CPU_NUM]`.
-pub struct LogicalCPUID(u64);
+pub struct LogicalCPUID(usize);
 
 impl LogicalCPUID {
     /// Create new `LogicalCPUID` from fixed integer value.
-    pub fn new(value: u64) -> Self {
+    pub const fn new(value: usize) -> Self {
         Self { 0: value }
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> usize {
+        self.0
     }
 }
 
@@ -78,6 +83,12 @@ pub fn initialize(token: LevelInitialization) -> LevelInitialization {
         }
     }
 
+    // Signal finished initialization
+    //
+    // # Safety
+    // Initialization is done at this point, thus it is safe to make CPU_MAP read-only.
+    let token = unsafe { CPU_MAP.finanlize(token) };
+
     token
 }
 
@@ -89,7 +100,7 @@ pub fn lookup_logical_id(hart_id: HartID) -> LogicalCPUID {
     let cpu_map = CPU_MAP.as_ref();
     for (curr_logical_id, curr_hart_id) in cpu_map.map.iter().enumerate() {
         if *curr_hart_id == hart_id {
-            return LogicalCPUID::new(u64::try_from(curr_logical_id).unwrap());
+            return LogicalCPUID::new(curr_logical_id);
         }
     }
 
@@ -105,7 +116,7 @@ pub fn lookup_logical_id(hart_id: HartID) -> LogicalCPUID {
 /// If no corresponding `LogicalCPUID` is found, `panic` will be called.
 pub fn lookup_hart_id(logical_id: LogicalCPUID) -> HartID {
     let cpu_map = CPU_MAP.as_ref();
-    if logical_id.0 >= u64::try_from(cpu_map.idx).unwrap() {
+    if logical_id.0 >= cpu_map.idx {
         panic!(
             "Unable to lookup corresponding hart ID for logical ID {}",
             logical_id

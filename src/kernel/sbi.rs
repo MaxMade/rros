@@ -404,7 +404,7 @@ pub fn start_hart(
     start_addr: kernel::address::PhysicalAddress<unsafe extern "C" fn(isize, isize)>,
     arg: isize,
 ) -> Result<(), SBIError> {
-    let hart_id: u64 = hart_id.into();
+    let hart_id = hart_id.raw();
     match sbi_ecall_3(
         SBIExtensionID::HartStateManagement,
         SBIFunctionID::HartStateManagementExtension(SBIHSMFunctionID::HartStart),
@@ -426,7 +426,7 @@ pub fn start_hart(
 ///
 /// * `hart_id`: Target hart ID.
 pub fn status_hart(hart_id: kernel::cpu::HartID) -> Result<SBIHartState, SBIError> {
-    let hart_id: u64 = hart_id.into();
+    let hart_id = hart_id.raw();
     match sbi_ecall_1(
         SBIExtensionID::HartStateManagement,
         SBIFunctionID::HartStateManagementExtension(SBIHSMFunctionID::HartStatus),
