@@ -8,6 +8,11 @@ use core::ops::{Deref, DerefMut};
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::{Level, LevelPrologue};
 
+/// Get default page size (`4096` bytes)
+pub const fn page_size() -> usize {
+    4096
+}
+
 /// Let the current hart enter a low-energy mode which can not be left!
 pub fn die() -> ! {
     unsafe {
