@@ -240,7 +240,29 @@ impl InterruptController {
 
     /// Send end-of-interrupt signal.
     pub fn end_of_interrupt(&self, interrupt: Interrupt, token: LevelPrologue) -> LevelPrologue {
-        todo!();
+        const CLAIM_OFFSET: usize = RegisterOffset::ClaimComplete as usize;
+
+        // Lock PLIC
+        let (mut plic, token) = self.0.lock(token);
+
+        // Get current hart
+        let hart_id = cpu_map::lookup_hart_id(cpu::current());
+        let hart_id = usize::try_from(hart_id.raw()).unwrap();
+
+        // Calculate context offset
+        let context_offset = 2 * hart_id * 0x1000 + 0x1000;
+
+        // Write back interupt to complete
+        plic.config_space
+            .store(
+                CLAIM_OFFSET + context_offset,
+                usize::try_from(interrupt).unwrap() as u32,
+            )
+            .unwrap();
+
+        // Unlock PLIC
+        let token = plic.unlock(token);
+        token
     }
 }
 

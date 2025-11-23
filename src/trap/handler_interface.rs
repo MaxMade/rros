@@ -423,5 +423,7 @@ extern "C" fn trap_handler(state: *mut TrapContext, user: usize) {
     };
 
     // Execute pending epilogues
-    todo!("Execute pending epilogues");
+    if epilogue_required {
+        todo!();
+    }
 }
