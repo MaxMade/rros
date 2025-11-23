@@ -1,11 +1,11 @@
 //! Timer using RISC-V `Timer` extension.
 
 use crate::arch::cpu::CounterEnable;
-use crate::arch::cpu::Time;
 use crate::arch::cpu::TimeCompare;
 use crate::arch::cpu::CSR;
 use crate::arch::sie::SIE;
 use crate::arch::sip::SIP;
+use crate::arch::time::Time;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::rtc::RTC;
@@ -43,9 +43,10 @@ impl Timer {
         let ticks = (self.ticks_per_us * TIMER_INTERVAL_US) as u64;
 
         // Update compare register
-        let time = Time::new().raw();
+        let mut time = Time::new(0);
         let mut time_compare = TimeCompare::new();
-        time_compare.set(time + ticks);
+        time.read();
+        time_compare.set(time.inner() + ticks);
         time_compare.write();
 
         token
@@ -65,12 +66,15 @@ impl Driver for Timer {
         counter_enable.write();
 
         // Calibrate stime
+        let mut time = Time::new(0);
         const NUM_US: u64 = 50_000;
-        let stime_start = Time::new().raw();
+        time.read();
+        let stime_start = time.inner();
         let token = RTC
             .as_ref()
             .early_wait(MicroSecond::new(NUM_US as usize).convert(), token);
-        let stime_end = Time::new().raw();
+        time.read();
+        let stime_end = time.inner();
 
         let ticks = match stime_end < stime_start {
             true => (u64::MAX - stime_start) + stime_end,
@@ -125,9 +129,10 @@ impl TrapHandler for Timer {
         let ticks = (self.ticks_per_us * TIMER_INTERVAL_US) as u64;
 
         // Update compare register
-        let time = Time::new().raw();
+        let mut time = Time::new(0);
         let mut time_compare = TimeCompare::new();
-        time_compare.set(time + ticks);
+        time.read();
+        time_compare.set(time.inner() + ticks);
         time_compare.write();
 
         // Re-enable timer interrupts
