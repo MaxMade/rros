@@ -9,9 +9,13 @@ use crate::kernel::cpu::SCause;
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Interrupt {
+    /// Supervisor software interrupt.
     SoftwareInterrupt,
+    /// Supervisor timer interrupt.
     TimerInterrupt,
+    /// Supervisor external interrupt.
     ExternalInterrupt,
+    /// Supervisor generic interrupt.
     Interrupt(u64),
 }
 
@@ -42,19 +46,33 @@ impl Display for Interrupt {
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Exception {
+    /// Instruction address misaligned.
     InstructionMisalignedAddr,
+    /// Instruction access fault.
     InstructionAccessFault,
+    /// Illegal instruction.
     IllegalInstruction,
+    /// Breakpoint.
     Breakpoint,
+    /// Load address misaligned.
     LoadMisalignedAddr,
+    /// Load access fault.
     LoadAccessFault,
+    /// Store/AMO address misaligned.
     StoreMisalignedAddr,
+    /// Store/AMO access fault.
     StoreAccessFault,
+    /// Environment call from U-mode.
     EnvCallUser,
+    /// Environment call from S-mode.
     EnvCallSupervisor,
+    /// Instruction page fault
     InstructionPageFault,
+    /// Load page fault.
     LoadPageFault,
+    /// Store page fault.
     StorePageFault,
+    /// Generic exception.
     Exception(u64),
 }
 
@@ -105,7 +123,9 @@ impl Display for Exception {
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Trap {
+    /// [`Interrupt`] source.
     Interrupt(Interrupt),
+    /// [`Exception`] source.
     Exception(Exception),
 }
 
