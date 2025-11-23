@@ -98,8 +98,32 @@ fn compile_assembly_file(file: &path::Path, configs_options: &[Config]) {
     /* Construct build command */
     let mut builder = cc::Build::new();
 
+    /* Search suitable C compiler */
+    let mut cc = None;
+    let common_ccs = [
+        path::Path::new("/bin/gcc-riscv64-unknown-elf"),
+        path::Path::new("/bin/riscv64-elf-gcc"),
+        path::Path::new("/usr/bin/gcc-riscv64-unknown-elf"),
+        path::Path::new("/usr/bin/riscv64-elf-gcc"),
+    ];
+    for common_cc in common_ccs {
+        if common_cc.exists() {
+            cc = Some(common_cc);
+            break;
+        }
+    }
+    let cc = match cc {
+        Some(cc) => cc,
+        None => {
+            panic!(
+                "Unable to find suitable C compiler! Install one of the following binaries: {:?}",
+                common_ccs
+            );
+        }
+    };
+
     /* Add default flags */
-    builder.compiler("/usr/bin/riscv64-elf-gcc");
+    builder.compiler(cc);
     builder.flag("-march=rv64gc");
     builder.flag("-mabi=lp64d");
 
