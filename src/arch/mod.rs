@@ -11,6 +11,7 @@ pub mod sie;
 pub mod sip;
 pub mod sscratch;
 pub mod sstatus;
+pub mod stimecmp;
 pub mod stval;
 pub mod stvec;
 pub mod time;

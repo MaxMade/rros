@@ -1,10 +1,10 @@
 //! Timer using RISC-V `Timer` extension.
 
-use crate::arch::cpu::TimeCompare;
 use crate::arch::cpu::CSR;
 use crate::arch::scounteren::SCounterEn;
 use crate::arch::sie::SIE;
 use crate::arch::sip::SIP;
+use crate::arch::stimecmp::STimeCmp;
 use crate::arch::time::Time;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
@@ -44,10 +44,9 @@ impl Timer {
 
         // Update compare register
         let mut time = Time::new(0);
-        let mut time_compare = TimeCompare::new();
         time.read();
-        time_compare.set(time.inner() + ticks);
-        time_compare.write();
+        let stimecmp = STimeCmp::new(time.inner() + ticks);
+        stimecmp.write();
 
         token
     }
@@ -131,10 +130,9 @@ impl TrapHandler for Timer {
 
         // Update compare register
         let mut time = Time::new(0);
-        let mut time_compare = TimeCompare::new();
         time.read();
-        time_compare.set(time.inner() + ticks);
-        time_compare.write();
+        let stimecmp = STimeCmp::new(time.inner() + ticks);
+        stimecmp.write();
 
         // Re-enable timer interrupts
         let mut sie = SIE::new(0);
