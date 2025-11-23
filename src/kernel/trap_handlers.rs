@@ -1,10 +1,10 @@
-//! Software-Abstractions for trap handling.
+//! Software-Abstractions for trap handlers.
 
 use crate::kernel::trap::Trap;
 use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelPrologue;
 
-/// Interface for handling traps -  suitable for interrupts and exceptions
+/// Interface for handling traps -  suitable for interrupts and exceptions.
 pub trait TrapHandler {
     /// Get [`Trap`] cause.
     fn cause() -> Trap;

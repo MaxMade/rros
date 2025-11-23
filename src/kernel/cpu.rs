@@ -2,6 +2,7 @@
 
 use core::arch::asm;
 use core::fmt::Display;
+use core::ops::{Deref, DerefMut};
 
 /// Abstraction of hard ID.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -72,11 +73,9 @@ impl TP {
 pub struct SStatus(u64);
 
 impl SStatus {
-    /// Create new, initialized `SStatus`.
-    pub fn new() -> Self {
-        let mut reg = SStatus(0);
-        reg.read();
-        return reg;
+    /// Create `STVal` from raw value.
+    pub const fn new(value: u64) -> Self {
+        Self { 0: value }
     }
 
     /// Update value of `SStatus` based on underlying  `sstatus` register.
@@ -476,21 +475,24 @@ pub fn unmask_all_interrupts() {
 
 /// Enable supervisor-mode interrupts (in `sstatus register).
 pub fn enable_interrupts() {
-    let mut sstatus = SStatus::new();
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
     sstatus.set_sie(true);
     sstatus.write();
 }
 
 /// Disable supervisor-mode interrupts (in `sstatus register).
 pub fn disable_interrupts() {
-    let mut sstatus = SStatus::new();
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
     sstatus.set_sie(false);
     sstatus.write();
 }
 
 /// Check if supervisor-mode interrupts are enabled.
 pub fn interrupts_enabled() -> bool {
-    let mut sstatus = SStatus::new();
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
     sstatus.get_sie()
 }
 
@@ -507,7 +509,8 @@ impl InterruptFlag {
 
 /// Save interrupt flag and disable supervisor-mode interrupts.
 pub fn save_and_disable_interrupts() -> InterruptFlag {
-    let mut sstatus = SStatus::new();
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
     let ret = InterruptFlag {
         0: sstatus.get_sie(),
     };
@@ -519,7 +522,8 @@ pub fn save_and_disable_interrupts() -> InterruptFlag {
 
 /// Restore previous interrupt flag.
 pub fn restore_interrupts(flag: InterruptFlag) {
-    let mut sstatus = SStatus::new();
+    let mut sstatus = SStatus::new(0);
+    sstatus.read();
     sstatus.set_sie(flag.0);
     sstatus.write();
 }
@@ -623,5 +627,53 @@ impl STVal {
 impl Display for STVal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{:#018x}", self.0)
+    }
+}
+
+/// Abstraction of general-purpose register
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Register(u64);
+
+impl Register {
+    /// Create `Register` from raw value.
+    pub const fn new(value: u64) -> Self {
+        Self { 0: value }
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl Display for Register {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
+
+impl AsRef<u64> for Register {
+    fn as_ref(&self) -> &u64 {
+        &self.0
+    }
+}
+
+impl AsMut<u64> for Register {
+    fn as_mut(&mut self) -> &mut u64 {
+        &mut self.0
+    }
+}
+
+impl Deref for Register {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Register {
+    fn deref_mut(&mut self) -> &mut u64 {
+        &mut self.0
     }
 }

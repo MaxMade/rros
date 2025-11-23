@@ -2,6 +2,8 @@
 
 use core::fmt::Display;
 
+use crate::kernel::cpu::SCause;
+
 /// Interrupt reasons.
 ///
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
@@ -10,7 +12,7 @@ pub enum Interrupt {
     SoftwareInterrupt,
     TimerInterrupt,
     ExternalInterrupt,
-    Interrupt(u8),
+    Interrupt(u64),
 }
 
 impl Into<usize> for Interrupt {
@@ -53,7 +55,7 @@ pub enum Exception {
     InstructionPageFault,
     LoadPageFault,
     StorePageFault,
-    Exception(u8),
+    Exception(u64),
 }
 
 impl Into<usize> for Exception {
@@ -107,11 +109,64 @@ pub enum Trap {
     Exception(Exception),
 }
 
+impl Trap {
+    /// Check if pending trap is an [`Interrupt`]
+    pub const fn is_interrupt(&self) -> bool {
+        match self {
+            Trap::Interrupt(_) => true,
+            Trap::Exception(_) => false,
+        }
+    }
+
+    /// Check if pending trap is an [`Exception`]
+    pub const fn is_exception(&self) -> bool {
+        match self {
+            Trap::Interrupt(_) => false,
+            Trap::Exception(_) => true,
+        }
+    }
+}
+
 impl Display for Trap {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Trap::Interrupt(interrupt) => write!(f, "{}", interrupt),
             Trap::Exception(exception) => write!(f, "{}", exception),
+        }
+    }
+}
+
+impl From<SCause> for Trap {
+    fn from(value: SCause) -> Self {
+        const INTERRUPT_MASK: u64 = 1u64 << 63;
+        let is_interrupt = (value.raw() & INTERRUPT_MASK) != 0;
+
+        if is_interrupt {
+            let trap = match value.raw() & !INTERRUPT_MASK {
+                1 => Trap::Interrupt(Interrupt::SoftwareInterrupt),
+                5 => Trap::Interrupt(Interrupt::TimerInterrupt),
+                9 => Trap::Interrupt(Interrupt::ExternalInterrupt),
+                interrupt => Trap::Interrupt(Interrupt::Interrupt(interrupt)),
+            };
+            return trap;
+        } else {
+            let trap = match value.raw() & !INTERRUPT_MASK {
+                0 => Trap::Exception(Exception::InstructionMisalignedAddr),
+                1 => Trap::Exception(Exception::InstructionAccessFault),
+                2 => Trap::Exception(Exception::IllegalInstruction),
+                3 => Trap::Exception(Exception::Breakpoint),
+                4 => Trap::Exception(Exception::LoadMisalignedAddr),
+                5 => Trap::Exception(Exception::LoadAccessFault),
+                6 => Trap::Exception(Exception::StoreMisalignedAddr),
+                7 => Trap::Exception(Exception::StoreAccessFault),
+                8 => Trap::Exception(Exception::EnvCallUser),
+                9 => Trap::Exception(Exception::EnvCallSupervisor),
+                12 => Trap::Exception(Exception::InstructionPageFault),
+                13 => Trap::Exception(Exception::LoadPageFault),
+                15 => Trap::Exception(Exception::StorePageFault),
+                exception => Trap::Exception(Exception::Exception(exception)),
+            };
+            return trap;
         }
     }
 }
