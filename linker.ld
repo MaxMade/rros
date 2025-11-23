@@ -37,6 +37,13 @@ SECTIONS {
 	.bss : AT (ADDR (.bss) - ADDRESS_OFFSET) {
 		PROVIDE(_bss_start = .);
 		*(.sbss .sbss.*) *(.bss .bss.*)
+
+		/* (Statically) allocated 16 MiB for pages */
+		. = ALIGN(4096);
+		PROVIDE(_pages_start = .);
+		. = . + 0x1000000;
+		PROVIDE(_pages_end = .);
+
 		PROVIDE(_bss_end = .);
 	}
 }

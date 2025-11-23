@@ -18,8 +18,8 @@ extern "C" {
     static mut _bss_start: c_void;
     static mut _bss_end: c_void;
 
-    static mut _allocator_start: c_void;
-    static mut _allocator_end: c_void;
+    static mut _pages_start: c_void;
+    static mut _pages_end: c_void;
 }
 
 /// Get start address of `.text` segment.
@@ -82,17 +82,17 @@ pub fn bss_segment_size() -> usize {
     bss_segment_end().addr() - bss_segment_start().addr()
 }
 
-/// Get start address of `.allocator` memory.
-pub fn allocator_mem_start() -> VirtualAddress<c_void> {
-    return VirtualAddress::from(unsafe { &mut _allocator_start as *mut c_void });
+/// Get start address of `pages` range.
+pub fn pages_mem_start() -> VirtualAddress<c_void> {
+    return VirtualAddress::from(unsafe { &mut _pages_start as *mut c_void });
 }
 
-/// Get end address of `.allocator` memory.
-pub fn allocator_mem_end() -> VirtualAddress<c_void> {
-    return VirtualAddress::from(unsafe { &mut _allocator_end as *mut c_void });
+/// Get end address of `pages` range.
+pub fn pages_mem_end() -> VirtualAddress<c_void> {
+    return VirtualAddress::from(unsafe { &mut _pages_end as *mut c_void });
 }
 
-/// Get size of `.allocator` memory.
-pub fn allocator_mem_size() -> usize {
-    allocator_mem_end().addr() - allocator_mem_start().addr()
+/// Get size of `pages` memory.
+pub fn pages_mem_size() -> usize {
+    pages_mem_end().addr() - pages_mem_start().addr()
 }
