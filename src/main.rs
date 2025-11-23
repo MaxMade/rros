@@ -11,11 +11,11 @@ use boot::device_tree::dt::DeviceTree;
 use drivers::driver::Driver;
 use sync::level::Level;
 
-mod boot;
-mod config;
-mod drivers;
-mod kernel;
-mod sync;
+pub mod boot;
+pub mod config;
+pub mod drivers;
+pub mod kernel;
+pub mod sync;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
