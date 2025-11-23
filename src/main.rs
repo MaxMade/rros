@@ -12,6 +12,7 @@ use sync::level::Level;
 
 mod boot;
 mod config;
+mod drivers;
 mod kernel;
 mod sync;
 
