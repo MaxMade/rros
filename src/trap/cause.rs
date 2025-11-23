@@ -30,6 +30,17 @@ impl Into<usize> for Interrupt {
     }
 }
 
+impl From<usize> for Interrupt {
+    fn from(value: usize) -> Self {
+        match value {
+            1 => Interrupt::SoftwareInterrupt,
+            5 => Interrupt::TimerInterrupt,
+            9 => Interrupt::ExternalInterrupt,
+            interrupt => Interrupt::Interrupt(interrupt as u64),
+        }
+    }
+}
+
 impl Display for Interrupt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -93,6 +104,27 @@ impl Into<usize> for Exception {
             Exception::LoadPageFault => 13,
             Exception::StorePageFault => 15,
             Exception::Exception(exception) => exception as usize,
+        }
+    }
+}
+
+impl From<usize> for Exception {
+    fn from(value: usize) -> Self {
+        match value {
+            0 => Exception::InstructionMisalignedAddr,
+            1 => Exception::InstructionAccessFault,
+            2 => Exception::IllegalInstruction,
+            3 => Exception::Breakpoint,
+            4 => Exception::LoadMisalignedAddr,
+            5 => Exception::LoadAccessFault,
+            6 => Exception::StoreMisalignedAddr,
+            7 => Exception::StoreAccessFault,
+            8 => Exception::EnvCallUser,
+            9 => Exception::EnvCallSupervisor,
+            12 => Exception::InstructionPageFault,
+            13 => Exception::LoadPageFault,
+            15 => Exception::StorePageFault,
+            exception => Exception::Exception(exception as u64),
         }
     }
 }

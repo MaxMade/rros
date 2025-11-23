@@ -1,9 +1,6 @@
 //! Software-Abstractions for trap handlers.
 
-use core::array;
 use core::mem;
-use core::sync::atomic::AtomicBool;
-use core::sync::atomic::Ordering;
 
 use crate::drivers::panic::PANIC;
 use crate::kernel::cpu::STVec;
@@ -13,6 +10,8 @@ use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPrologue;
 use crate::sync::per_core::PerCore;
+use crate::trap::cause::Exception;
+use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 
 const NUM_EXCEPTION_HANDLERS: usize = 256;
@@ -21,32 +20,34 @@ const NUM_INTERRUPT_HANDLERS: usize = 256;
 /// Instance for registering/requesting [`TrapHandler`]s.
 pub static TRAP_HANDLERS: InitCell<TrapHandlers> = InitCell::new();
 
+/// Convientent wrapper for dealing with shared references to handlers.
+pub type HandlerRef = &'static dyn TrapHandler;
+
 /// Abstraction of trap handlers
 pub struct TrapHandlers {
-    exception_handlers: [&'static dyn TrapHandler; NUM_EXCEPTION_HANDLERS],
-    interrupt_handlers: [&'static dyn TrapHandler; NUM_INTERRUPT_HANDLERS],
-    globally_pending: AtomicBool,
-    locally_pending_interrupt: PerCore<[AtomicBool; NUM_INTERRUPT_HANDLERS]>,
-    locally_pending_exception: PerCore<[AtomicBool; NUM_EXCEPTION_HANDLERS]>,
+    /// Register [`TrapHandlers`] for [`Trap::Interrupt`].
+    pub(in crate::trap::handlers) exception_handlers: [HandlerRef; NUM_EXCEPTION_HANDLERS],
+    /// Register [`TrapHandlers`] handlers for [`Trap::Exception`]
+    pub(in crate::trap::handlers) interrupt_handlers: [HandlerRef; NUM_INTERRUPT_HANDLERS],
+    /// Pending [`Trap::Interrupt`]s.
+    pub(in crate::trap::handlers) pending_interrupts: PerCore<[bool; NUM_INTERRUPT_HANDLERS]>,
+    /// Pending [`Trap::Exception`]s.
+    pub(in crate::trap::handlers) pending_exceptions: PerCore<[bool; NUM_EXCEPTION_HANDLERS]>,
 }
 
 impl TrapHandlers {
     /// Prepare [`TRAP_HANDLERS`].
-    pub fn initailize(token: LevelInitialization) -> LevelInitialization {
+    pub fn initialize(token: LevelInitialization) -> LevelInitialization {
         // Get mutable reference for TRAP_HANDLERS
         let (handlers, token) = TRAP_HANDLERS.as_mut(token);
 
         // Initialize members
-        let panic: &'static dyn TrapHandler = &PANIC;
+        let panic: HandlerRef = &PANIC;
         handlers.exception_handlers = [panic; NUM_EXCEPTION_HANDLERS];
         handlers.interrupt_handlers = [panic; NUM_INTERRUPT_HANDLERS];
 
-        handlers.globally_pending.store(false, Ordering::Relaxed);
-
-        handlers.locally_pending_interrupt =
-            PerCore::new_fn(|_| array::from_fn(|_| AtomicBool::new(false)));
-        handlers.locally_pending_exception =
-            PerCore::new_fn(|_| array::from_fn(|_| AtomicBool::new(false)));
+        handlers.pending_interrupts = PerCore::new_copy([false; NUM_INTERRUPT_HANDLERS]);
+        handlers.pending_exceptions = PerCore::new_copy([false; NUM_EXCEPTION_HANDLERS]);
 
         token
     }
@@ -58,13 +59,13 @@ impl TrapHandlers {
     pub fn register(
         &self,
         trap: Trap,
-        handler: &'static dyn TrapHandler,
+        handler: HandlerRef,
         token: LevelInitialization,
     ) -> LevelInitialization {
         // Get mutable reference for TRAP_HANDLERS
         let (handlers, token) = TRAP_HANDLERS.as_mut(token);
 
-        let panic: &'static dyn TrapHandler = &PANIC;
+        let panic: HandlerRef = &PANIC;
         match trap {
             Trap::Interrupt(interrupt) => {
                 let index: usize = interrupt.into();
@@ -97,6 +98,95 @@ impl TrapHandlers {
         let token = unsafe { TRAP_HANDLERS.finanlize(token) };
         token
     }
+
+    /// Get corresponding [`HandlerRef`] for [`Trap`].
+    pub fn get(trap: Trap, token: LevelPrologue) -> (HandlerRef, LevelPrologue) {
+        let handler = match trap {
+            Trap::Interrupt(interrupt) => {
+                let index: usize = interrupt.into();
+                TRAP_HANDLERS.as_ref().interrupt_handlers[index]
+            }
+            Trap::Exception(exception) => {
+                let index: usize = exception.into();
+                TRAP_HANDLERS.as_ref().exception_handlers[index]
+            }
+        };
+
+        (handler, token)
+    }
+
+    /// Enqueue a pending [`Trap`].
+    ///
+    /// If a [`Trap`] interrupts an other currently running `epilogue` with its own corresponding
+    /// `prologue`, the corresponding [`Trap`] is enqueue and executed later on.
+    pub fn enqueue(trap: Trap, token: LevelPrologue) -> LevelPrologue {
+        match trap {
+            Trap::Interrupt(interrupt) => {
+                let index: usize = interrupt.into();
+                unsafe { TRAP_HANDLERS.as_ref().pending_interrupts.get_mut()[index] = true }
+            }
+            Trap::Exception(exception) => {
+                let index: usize = exception.into();
+                unsafe { TRAP_HANDLERS.as_ref().pending_exceptions.get_mut()[index] = true }
+            }
+        }
+
+        token
+    }
+
+    /// Dequeue a pending [`Trap`].
+    ///
+    /// If a [`Trap`] interrupts an other currently running `epilogue` with its own corresponding
+    /// `prologue`, the corresponding [`Trap`] is enqueue and dequeued later on.
+    pub fn dequeue(token: LevelPrologue) -> (Option<Trap>, LevelPrologue) {
+        let mut trap = None;
+
+        // Check for pending interrupt
+        for (i, pending) in TRAP_HANDLERS
+            .as_ref()
+            .pending_interrupts
+            .get()
+            .iter()
+            .enumerate()
+        {
+            if *pending {
+                let interrupt = Interrupt::from(i);
+                trap = Some(Trap::Interrupt(interrupt));
+            }
+        }
+        if let Some(Trap::Interrupt(interrupt)) = trap {
+            // Mark interrupt as processed
+            let index: usize = interrupt.into();
+            unsafe { TRAP_HANDLERS.as_ref().pending_interrupts.get_mut()[index] = false }
+
+            // Return pending interrupt
+            return (trap, token);
+        }
+
+        // Check for pending exception
+        for (i, pending) in TRAP_HANDLERS
+            .as_ref()
+            .pending_exceptions
+            .get()
+            .iter()
+            .enumerate()
+        {
+            if *pending {
+                let exception = Exception::from(i);
+                trap = Some(Trap::Exception(exception));
+            }
+        }
+        if let Some(Trap::Exception(exception)) = trap {
+            // Mark exception as processed
+            let index: usize = exception.into();
+            unsafe { TRAP_HANDLERS.as_ref().pending_exceptions.get_mut()[index] = false }
+
+            // Return pending exception
+            return (trap, token);
+        }
+
+        (None, token)
+    }
 }
 
 extern "C" {
@@ -118,7 +208,7 @@ pub trait TrapHandler: Sync {
     /// handler: It *must* be as short as possible as interrupts are disabled during execution.
     /// Thus, no locking/blocking/waiting/... is allowed! For such tasks, an optional `epilogue`
     /// can be requested by return `true`.
-    fn prologue(&self, token: LevelPrologue) -> bool;
+    fn prologue(&self, token: LevelPrologue) -> (bool, LevelPrologue);
 
     /// Low-priority task of Prologue/Epilogue model.
     ///
@@ -126,38 +216,8 @@ pub trait TrapHandler: Sync {
     /// of all deferrable task. Thus, locking/blocking/waiting/... is allowed! While `prologue`
     /// must be implemented by every [`TrapHandler`], the `epilogue` is optional.
     fn epilogue(&self, token: LevelEpilogue) {
+        let _ = token;
         /* Nothing to do here */
-    }
-
-    /// Callback to enqueue an `epilogue`.
-    ///
-    /// If an `prologue`, which interrupted another running `epilogue`, requests the corresponding
-    /// `epilogue` is deferred and executed later on.
-    ///
-    /// The default implementation is best-suited for most occasions. Please do only overwrite this
-    /// implementation if you are absolution sure what are you doing.
-    fn enqueue(&self) {
-        todo!("Provide default implementation using Driver::cause()");
-    }
-
-    /// Callback to dequeue an `epilogue`.
-    ///
-    /// If an `prologue`, which interrupted another running `epilogue`, requests the corresponding
-    /// `epilogue` is deferred and executed later on. The `dequeue` marks the first phase of
-    /// execution.
-    ///
-    /// The default implementation is best-suited for most occasions. Please do only overwrite this
-    /// implementation if you are absolution sure what are you doing.
-    fn dequeue(&self) {
-        todo!("Provide default implementation using Driver::cause()");
-    }
-
-    /// Check if handler is already enqueued.
-    ///
-    /// The default implementation is best-suited for most occasions. Please do only overwrite this
-    /// implementation if you are absolution sure what are you doing.
-    fn is_enqueue(&self) -> bool {
-        todo!("Provide default implementation using Driver::cause()");
     }
 }
 

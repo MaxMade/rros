@@ -86,6 +86,9 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     // Initialize trap vector
     let level_initialization = trap::handlers::load_trap_vector(level_initialization);
 
+    // Initialize default trap handlers
+    let level_initialization = trap::handlers::TrapHandlers::initialize(level_initialization);
+
     // Initialize interrupt controller
     let level_initialization =
         match trap::intc::InterruptController::initiailize(level_initialization) {
@@ -98,6 +101,9 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
         Ok(token) => token,
         Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
     };
+
+    // Finalize trap handlers **after** initialization of drivers
+    let level_initialization = trap::handlers::TrapHandlers::finalize(level_initialization);
 
     // Initialize global printer
     let level_initialization = match kernel::printer::initialize(level_initialization) {

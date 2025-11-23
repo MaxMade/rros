@@ -30,23 +30,13 @@ impl TrapHandler for Panic {
         panic!("The panic driver must never be Driver::cause()");
     }
 
-    fn prologue(&self, _token: LevelPrologue) -> bool {
-        panic!("PANIC! Unexpected interrupt!");
+    fn prologue(&self, token: LevelPrologue) -> (bool, LevelPrologue) {
+        let _ = token;
+        panic!("PANIC! Unexpected interrupt");
     }
 
-    fn epilogue(&self, _token: LevelEpilogue) {
+    fn epilogue(&self, token: LevelEpilogue) {
+        let _ = token;
         panic!("The panic driver must never request a epilogue");
-    }
-
-    fn enqueue(&self) {
-        panic!("The panic driver must never be Driver::enqueue()");
-    }
-
-    fn dequeue(&self) {
-        panic!("The panic driver must never be Driver::dequeue()");
-    }
-
-    fn is_enqueue(&self) -> bool {
-        false
     }
 }

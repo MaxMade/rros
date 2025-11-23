@@ -9,7 +9,9 @@ use crate::kernel::cpu::STVal;
 use crate::kernel::cpu::SEPC;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;
+use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
+use crate::trap::handlers::TrapHandlers;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
 
 /// Context object passed by low-level (assembly) trap entry.
@@ -393,23 +395,31 @@ extern "C" fn trap_handler(state: *mut TrapContext, user: usize) {
 
     // Get more generic abstraction of cause
     let trap = Trap::from(sscause);
+    let (trap, token) = match trap {
+        Trap::Interrupt(Interrupt::ExternalInterrupt) => {
+            let (interrupt, token) = INTERRUPT_CONTROLLER.source(token);
+            (Trap::Interrupt(interrupt), token)
+        }
+        Trap::Interrupt(_) => (trap, token),
+        Trap::Exception(_) => (trap, token),
+    };
 
-    // Execute prologue of Trap
-    let epilogue_required = if trap.is_interrupt() {
-        // Get pending interrupt
-        let (interrupt, token) = INTERRUPT_CONTROLLER.source(token);
+    // Get corresponding handler
+    let (handler, token) = TrapHandlers::get(trap, token);
 
-        // Execute prologue
-        let epilogue_required = todo!();
+    // Execute prologue
+    let (epilogue_required, token) = handler.prologue(token);
 
-        // Send End-of-Interrupt
-        let token = INTERRUPT_CONTROLLER.end_of_interrupt(interrupt, token);
+    // Send end of interrupt if necessary
+    let token = match trap {
+        Trap::Interrupt(interrupt) => INTERRUPT_CONTROLLER.end_of_interrupt(interrupt, token),
+        Trap::Exception(_) => token,
+    };
 
-        epilogue_required
-    } else {
-        // Execute prologue
-        let epilogue_required = todo!();
-        epilogue_required
+    // Mark epilogue as pending (if necessary)
+    let token = match epilogue_required {
+        true => TrapHandlers::enqueue(trap, token),
+        false => token,
     };
 
     // Execute pending epilogues
