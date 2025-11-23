@@ -1,4 +1,4 @@
-//! Spin-based ticket lock implementing [Level](crate::sync::level::Level) design.
+//! Spin-based ticket lock implementing [Level] design.
 
 use core::cell::UnsafeCell;
 use core::hint;
@@ -122,7 +122,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         self.counter.load(Ordering::Relaxed) == self.ticket.load(Ordering::Relaxed)
     }
 
-    /// Consume this [`TicketMutex`] and unwraps the underlying data.
+    /// Consume this [`Ticketlock`] and unwraps the underlying data.
     pub fn into_inner(self) -> T {
         self.data.into_inner()
     }
@@ -276,7 +276,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
         self.lock.is_locked()
     }
 
-    /// Consume this [`TicketMutex`] and unwraps the underlying data.
+    /// Consume this [`Ticketlock`] and unwraps the underlying data.
     pub fn into_inner(self) -> T {
         self.lock.into_inner()
     }
