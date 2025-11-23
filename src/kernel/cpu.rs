@@ -548,3 +548,29 @@ impl Display for SScratch {
         write!(f, "{:#018x}", self.0)
     }
 }
+
+/// Abstraction of `sepc` register.
+///
+/// #See
+/// `4.1.7 Supervisor Exception Program Counter (sepc)` of `Volume II: RISC-V Privileged
+/// Architectures`
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SEPC(u64);
+
+impl SEPC {
+    /// Create `SEPC` from raw value.
+    pub const fn new(value: u64) -> Self {
+        Self { 0: value }
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl Display for SEPC {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
