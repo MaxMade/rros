@@ -2,11 +2,11 @@
 
 use core::mem;
 
-use crate::arch::cpu::current;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 use crate::kernel::compiler;
+use crate::kernel::cpu;
 use crate::kernel::cpu_map;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::kernel::sbi;
@@ -25,7 +25,7 @@ pub fn startup(token: LevelInitialization) {
     for i in 0..cpu_map::online_harts() {
         // Get LogicalCPUID
         let logical_id = LogicalCPUID::new(i);
-        if logical_id == current() {
+        if logical_id == cpu::current() {
             continue;
         }
 

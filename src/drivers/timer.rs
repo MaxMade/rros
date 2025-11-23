@@ -9,7 +9,6 @@ use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::rtc::RTC;
 use crate::kernel::time::MicroSecond;
-use crate::kernel::time::TimeUnits;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelEpilogue;

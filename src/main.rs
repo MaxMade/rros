@@ -41,7 +41,7 @@ fn panic(info: &PanicInfo) -> ! {
     }
 
     // Dying...
-    arch::cpu::die();
+    kernel::cpu::die();
 }
 
 fn synchronize(token: sync::level::LevelEpilogue) -> sync::level::LevelEpilogue {
@@ -154,7 +154,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     // Enable interrupts
     unsafe {
         arch::cpu::unmask_all_interrupts();
-        arch::cpu::enable_interrupts();
+        kernel::cpu::enable_interrupts();
     }
 
     // Synchronize with remaining harts
@@ -163,7 +163,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     printk!(
         kernel::printer::LogLevel::Info,
         "Core {}: Finished initialization\n",
-        arch::cpu::current()
+        kernel::cpu::current()
     );
 
     loop {}
@@ -191,7 +191,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     // Enable interrupts
     unsafe {
         arch::cpu::unmask_all_interrupts();
-        arch::cpu::enable_interrupts();
+        kernel::cpu::enable_interrupts();
     }
 
     // Synchronize with remaining harts
@@ -200,7 +200,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     printk!(
         kernel::printer::LogLevel::Info,
         "Core {}: Finished initialization\n",
-        arch::cpu::current()
+        kernel::cpu::current()
     );
 
     loop {}

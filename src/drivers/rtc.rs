@@ -15,7 +15,6 @@ use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::time::NanoSecond;
-use crate::kernel::time::TimeUnits;
 use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelDriver;

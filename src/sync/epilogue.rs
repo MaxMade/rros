@@ -4,8 +4,8 @@ use core::mem;
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
 
-use crate::arch::cpu;
 use crate::config;
+use crate::kernel::cpu;
 use crate::sync::level::LevelEpilogue;
 use crate::trap::handlers::TrapHandlers;
 

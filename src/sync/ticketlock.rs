@@ -8,10 +8,9 @@ use core::ops::DerefMut;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-use crate::arch::cpu;
-use crate::arch::cpu::InterruptFlag;
+use crate::kernel::cpu;
+use crate::kernel::cpu::InterruptFlag;
 use crate::sync::level::Level;
-
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;

@@ -1,13 +1,14 @@
 //! Rusty Trap Entry.
 
-use crate::arch::cpu;
 use crate::arch::cpu::Register;
+use crate::arch::cpu::CSR;
+use crate::kernel::cpu;
 
 use crate::arch::cpu::SCause;
 use crate::arch::cpu::SScratch;
-use crate::arch::cpu::SStatus;
 use crate::arch::cpu::STVal;
 use crate::arch::cpu::SEPC;
+use crate::arch::sstatus::SStatus;
 use crate::sync::epilogue;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;
@@ -357,7 +358,7 @@ impl TrapContext {
 
     /// Set register `sstatus` of [`TrapContext`].
     pub fn set_sstatus(&mut self, sstatus: SStatus) {
-        self.0[31] = sstatus.raw();
+        self.0[31] = sstatus.inner();
     }
 
     /// Set register `sscratch` of [`TrapContext`].

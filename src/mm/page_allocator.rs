@@ -2,11 +2,11 @@
 
 use core::ffi::c_void;
 
-use crate::arch::cpu;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::kernel::address::VirtualAddress;
 use crate::kernel::compiler;
+use crate::kernel::cpu;
 use crate::mm::error::MemoryError;
 use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPaging;

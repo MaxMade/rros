@@ -2,10 +2,10 @@
 
 use core::ffi::c_void;
 
-use crate::arch::cpu;
 use crate::arch::cpu::SATP;
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::compiler;
+use crate::kernel::cpu;
 use crate::mm::error::MemoryError;
 use crate::mm::page_allocator::PageFrameAllocator;
 use crate::mm::page_allocator::PAGE_FRAME_ALLOCATOR;

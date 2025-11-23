@@ -6,8 +6,8 @@ use core::cell::UnsafeCell;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
-use crate::arch::cpu;
 use crate::config;
+use crate::kernel::cpu;
 use crate::sync::level::Level;
 
 use super::level::LevelScheduler;
