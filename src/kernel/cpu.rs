@@ -4,6 +4,8 @@ use core::arch::asm;
 use core::fmt::Display;
 use core::ops::{Deref, DerefMut};
 
+use crate::kernel::cpu_map::LogicalCPUID;
+
 /// Abstraction of hard ID.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HartID(u64);
@@ -63,6 +65,14 @@ impl TP {
     pub const fn raw(self) -> u64 {
         self.0
     }
+}
+
+/// Get `current` [`LogicalCPUID`] from [`TP`] register.
+pub fn current() -> LogicalCPUID {
+    let mut tp = TP::new(0);
+    tp.read();
+    let raw_logical_id = tp.raw();
+    LogicalCPUID::new(usize::try_from(raw_logical_id).unwrap())
 }
 
 /// Current operating status of hart.
