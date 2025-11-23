@@ -19,6 +19,8 @@ use crate::sync::level::Level;
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::TicketlockDriver;
+use crate::trap::cause::Interrupt;
+use crate::trap::intc::INTERRUPT_CONTROLLER;
 
 /// Global Uart instance.
 pub static UART: Uart = Uart::new();
@@ -185,7 +187,7 @@ struct UARTNS16550a {
 impl UARTNS16550a {
     /// Create new UART NS16550a driver.
     pub const fn new() -> Self {
-        /* Create driver with invalid mmio_space */
+        // Create driver with invalid mmio_space
         unsafe {
             UARTNS16550a {
                 config_space: MMIOSpace::new(VirtualAddress::new(ptr::null_mut()), 0),
@@ -257,10 +259,10 @@ impl UARTNS16550a {
     ///
     /// * `baud_rate`: Required baud rate (must be divisor of 115200).
     fn configure_baudrate(&mut self, baud_rate: u32) {
-        /* Enable DLR access */
+        // Enable DLR access
         self.enable_dlr_access();
 
-        /* Configure divisor */
+        // Configure divisor
         let divider = 0x1c200u32.checked_div(baud_rate).unwrap();
         let lower_devicer = divider as u16;
         let upper_devicer = (divider >> 16) as u16;
@@ -272,7 +274,7 @@ impl UARTNS16550a {
             .store(RegisterOffset::IER as usize, upper_devicer)
             .unwrap();
 
-        /* Disable DLR access */
+        // Disable DLR access
         self.disable_dlr_access();
     }
 
@@ -397,10 +399,10 @@ impl Driver for Uart {
             None => return Err((DriverError::NonCompatibleDevice, token)),
         };
 
-        /* Get locked driver */
+        // Get locked driver
         let mut driver = UART.0.init_lock(token);
 
-        /* Get address and size of configuration space */
+        // Get address and size of configuration space
         let reg_property = match device.property_iter().filter(|p| p.name == "reg").next() {
             Some(reg_property) => reg_property,
             None => {
@@ -418,14 +420,14 @@ impl Driver for Uart {
         let _phys_addres = PhysicalAddress::from(raw_address as *mut u8);
         let size = raw_length;
 
-        /* TODO: Convert physical address to virtual address */
+        // TODO: Convert physical address to virtual address
         let virt_address = VirtualAddress::from(raw_address as *mut u8);
 
-        /* Create configuration space */
+        // Create configuration space
         let config_space = unsafe { MMIOSpace::new(virt_address, size) };
         driver.config_space = config_space;
 
-        /* Read clock frequency */
+        // Read clock frequency
         let clock_freq = match device
             .property_iter()
             .filter(|p| p.name == "clock-frequency")
@@ -451,25 +453,47 @@ impl Driver for Uart {
         };
         driver.clock_freq = clock_freq;
 
-        /* Disable all interrupts */
+        // Read interrupt configuration
+        let interrupts = match device
+            .property_iter()
+            .filter(|p| p.name == "interrupts")
+            .next()
+        {
+            Some(interrupts) => interrupts,
+            None => {
+                let token = driver.init_unlock();
+                return Err((DriverError::NonCompatibleDevice, token));
+            }
+        };
+        let interrupts = interrupts.into_interrupt_iter();
+
+        // Disable all interrupts
         driver.disable_rhri();
         driver.disable_thri();
         driver.disable_rlsi();
         driver.disable_msi();
 
-        /* Configure baudrate */
+        // Configure baudrate
         driver.configure_baudrate(115200);
 
-        /* Configure output */
+        // Configure output
         driver.configure_transmition(DataBits::Eight, StopBits::One, ParityMode::No);
 
-        /* Enable interrupts */
+        // Enable interrupts
         driver.enbale_rhri();
 
-        /* Unlock driver */
+        // Unlock driver
         let token = driver.init_unlock();
 
-        return Ok(token);
+        // Configure interrupt controller
+        let mut token = Some(token);
+        for interrupt in interrupts {
+            let interrupt = Interrupt::Interrupt(u64::from(interrupt));
+            token = Some(INTERRUPT_CONTROLLER.configure(interrupt, token.take().unwrap()));
+            token = Some(INTERRUPT_CONTROLLER.unmask(interrupt, token.take().unwrap()));
+        }
+
+        return Ok(token.unwrap());
     }
 }
 
@@ -480,10 +504,10 @@ impl Uart {
         value: u8,
         token: LevelDriver,
     ) -> Result<LevelDriver, (DriverError, LevelDriver)> {
-        /* Get locked driver */
+        // Get locked driver
         let (mut driver, token) = self.0.lock(token);
 
-        /* Wait for device to finish previous transmission */
+        // Wait for device to finish previous transmission
         loop {
             let lsr: u8 = driver
                 .config_space

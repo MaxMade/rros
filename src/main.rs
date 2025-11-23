@@ -107,6 +107,10 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
 
     printk!(kernel::printer::LogLevel::Info, "Hello World!\n");
 
+    unsafe {
+        kernel::cpu::unmask_all_interrupts();
+        kernel::cpu::enable_interrupts();
+    }
     loop {}
 }
 

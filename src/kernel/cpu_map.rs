@@ -14,6 +14,7 @@ use super::sbi;
 ///
 /// Logical CPU IDs implement another way to address hardware threads (aka. CPUs). Hereby, these
 /// IDs are assigned sequentially, and thus must be in range `[0, MAX_CPU_NUM]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LogicalCPUID(usize);
 
 impl LogicalCPUID {

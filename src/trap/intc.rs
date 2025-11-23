@@ -13,9 +13,11 @@ use crate::config;
 use crate::drivers::driver::{Driver, DriverError};
 use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
+use crate::kernel::cpu;
 use crate::kernel::cpu::ExecutionMode;
 use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
+use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
@@ -34,7 +36,6 @@ struct PLIC {
     num_intr_sources: usize,
     num_harts: usize,
     harts: [HartID; config::MAX_CPU_NUM],
-    deliviery_modes: [Option<DelivieryMode>; NUM_INTERRUPT_SOURCES],
 }
 
 /// Driver for PLIC of SiFive U5 Coreplex platform
@@ -55,15 +56,6 @@ enum RegisterOffset {
     ClaimComplete = 0x20_0004isize,
 }
 
-/// Interrupt deliviery mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DelivieryMode {
-    /// Route pending interrupt to single hart in round-robin fashion.
-    Unicast,
-    /// Route pending interrupt to every hart.
-    Broadcast,
-}
-
 impl PLIC {
     fn set_context_priority_threashold(
         &mut self,
@@ -71,72 +63,27 @@ impl PLIC {
         mode: ExecutionMode,
         priority_threashold: u32,
     ) {
-        const PRIORITY_THREASHOLD_OFFSET: usize = RegisterOffset::Priority as usize;
-
-        // Register map (relative to [`PriorityThreashold`]):
-        //
-        // |--------|----------------------------------|
-        // | 0x0000 | Hart 0 M-mode priority threshold |
-        // | 0x0004 | Hart 0 M-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x1000 | Hart 1 M-mode priority threshold |
-        // | 0x1004 | Hart 1 M-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x2000 | Hart 1 S-mode priority threshold |
-        // | 0x2004 | Hart 1 S-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x3000 | Hart 2 M-mode priority threshold |
-        // | 0x3004 | Hart 2 M-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x4000 | Hart 2 S-mode priority threshold |
-        // | 0x4004 | Hart 2 S-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x5000 | Hart 3 M-mode priority threshold |
-        // | 0x5004 | Hart 3 M-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x6000 | Hart 3 S-mode priority threshold |
-        // | 0x6004 | Hart 3 S-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x7000 | Hart 4 M-mode priority threshold |
-        // | 0x7004 | Hart 4 M-mode claim/complete     |
-        // |--------|----------------------------------|
-        // | 0x8000 | Hart 4 S-mode priority threshold |
-        // | 0x8004 | Hart 4 S-mode claim/complete     |
-        // |--------|----------------------------------|
-        //
-        // (For more details, see 8.1 Memory Map of SiFive U54-MC Core Complex Manual)
-
-        // Special case: Hart 0
-        if hart.raw() == 0 {
-            match mode {
-                ExecutionMode::User => panic!("Unable to configure priority threashold of PLIC for user mode!"),
-                ExecutionMode::Supervisor => panic!("Unable to configure priority threashold of PLIC for supervisor mode on hart 0!"),
-                ExecutionMode::Machine =>  self.config_space
-                    .store(PRIORITY_THREASHOLD_OFFSET, 0u32)
-                    .unwrap(),
-            }
-        }
-
+        const PRIORITY_THREASHOLD_OFFSET: usize = RegisterOffset::PriorityThreashold as usize;
         match mode {
-            ExecutionMode::User => {
-                panic!("Unable to configure priority threashold of PLIC for user mode!")
-            }
-            ExecutionMode::Supervisor => self
+            ExecutionMode::Machine => self
                 .config_space
                 .store(
                     PRIORITY_THREASHOLD_OFFSET + usize::try_from(hart.raw()).unwrap() * 0x2000,
                     priority_threashold,
                 )
                 .unwrap(),
-            ExecutionMode::Machine => self
+            ExecutionMode::Supervisor => self
                 .config_space
                 .store(
                     PRIORITY_THREASHOLD_OFFSET
-                        + 0x1000
-                        + (usize::try_from(hart.raw()).unwrap() - 1) * 0x2000,
+                        + usize::try_from(hart.raw()).unwrap() * 0x2000
+                        + 0x1000,
                     priority_threashold,
                 )
                 .unwrap(),
+            _ => {
+                panic!("Unable to configure priority threashold of PLIC for user mode!")
+            }
         }
     }
 
@@ -158,6 +105,43 @@ impl PLIC {
             )
             .unwrap();
     }
+
+    fn set_interrupt_enabled(
+        &mut self,
+        interrupt: usize,
+        hart: HartID,
+        mode: ExecutionMode,
+        enabled: bool,
+    ) {
+        const ENABLE_OFFSET: usize = RegisterOffset::Enable as usize;
+
+        let hart_id = usize::try_from(hart.raw()).unwrap();
+        let bit_offset = interrupt % usize::try_from(u32::BITS).unwrap();
+        let byte_offset = interrupt / usize::try_from(u32::BITS).unwrap();
+        let context_offset = match mode {
+            ExecutionMode::Machine => 0x100 * hart_id,
+            ExecutionMode::Supervisor => 0x100 * hart_id + 0x80,
+            _ => panic!("Unable to set enable bit of PLIC for user mode!"),
+        };
+
+        // Read mask
+        let mut mask: u32 = self
+            .config_space
+            .load(ENABLE_OFFSET + context_offset + byte_offset)
+            .unwrap();
+
+        // Modify mask
+        if enabled {
+            mask |= 1 << bit_offset;
+        } else {
+            mask &= !(1 << bit_offset);
+        }
+
+        // Write mask
+        self.config_space
+            .store(ENABLE_OFFSET + context_offset + byte_offset, mask)
+            .unwrap()
+    }
 }
 
 impl InterruptController {
@@ -169,7 +153,6 @@ impl InterruptController {
                 num_intr_sources: 0,
                 num_harts: 0,
                 harts: [HartID::new(0); config::MAX_CPU_NUM],
-                deliviery_modes: [None; NUM_INTERRUPT_SOURCES],
             }))
         }
     }
@@ -178,7 +161,6 @@ impl InterruptController {
     pub fn configure(
         &self,
         interrupt: Interrupt,
-        mode: DelivieryMode,
         token: LevelInitialization,
     ) -> LevelInitialization {
         // Colculate index.
@@ -187,9 +169,17 @@ impl InterruptController {
         // Lock driver
         let mut plic = self.0.init_lock(token);
 
-        // Update deliviery mode
-        assert!(plic.deliviery_modes[idx].is_none());
-        plic.deliviery_modes[idx] = Some(mode);
+        // All hart except from 0 are routable!
+        let curr_logical_id = cpu::current();
+        let hart_id = match curr_logical_id.raw() {
+            0 => *plic
+                .harts
+                .iter()
+                .find(|hart_id| hart_id.raw() != 0)
+                .unwrap(),
+            _ => cpu_map::lookup_hart_id(curr_logical_id),
+        };
+        plic.set_interrupt_enabled(idx, hart_id, ExecutionMode::Supervisor, true);
 
         // Unlock driver
         plic.init_unlock()
@@ -205,7 +195,7 @@ impl InterruptController {
     /// Unmask [`Interrupt`].
     pub fn unmask(&self, interrupt: Interrupt, token: LevelInitialization) -> LevelInitialization {
         let mut plic = self.0.init_lock(token);
-        plic.set_interrupt_priority(usize::try_from(interrupt).unwrap(), 0);
+        plic.set_interrupt_priority(usize::try_from(interrupt).unwrap(), 1);
         plic.init_unlock()
     }
 
@@ -277,7 +267,7 @@ impl Driver for InterruptController {
             plic.set_interrupt_priority(i, 0);
         }
 
-        //Set Threashold of each interrupt source (for each context) to 0
+        // Set Threashold of each interrupt source (for each context) to 0
         for (_, hart_id) in cpu_map::iter() {
             if hart_id.raw() != 0 {
                 plic.set_context_priority_threashold(hart_id, ExecutionMode::Supervisor, 0);

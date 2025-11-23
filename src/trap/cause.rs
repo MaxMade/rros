@@ -7,7 +7,7 @@ use crate::kernel::cpu::SCause;
 /// Interrupt reasons.
 ///
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interrupt {
     /// Supervisor software interrupt.
     SoftwareInterrupt,
@@ -44,7 +44,7 @@ impl Display for Interrupt {
 /// Exception reasons.
 ///
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Exception {
     /// Instruction address misaligned.
     InstructionMisalignedAddr,
@@ -121,7 +121,7 @@ impl Display for Exception {
 /// Trap reasons.
 ///
 /// For more details, see `Table 4.2` of `Volume II: RISC-V Privileged Architectures`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Trap {
     /// [`Interrupt`] source.
     Interrupt(Interrupt),

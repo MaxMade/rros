@@ -134,7 +134,7 @@ impl<'a> Property<'a> {
         }
 
         // Process PropEncodedArray values
-        if self.name == "reg" {
+        if self.name == "reg" || self.name == "interrupts" {
             // Sanity check: The value must consist of multiple u32 values!
             assert!(self.value.len() % mem::size_of::<u32>() == 0);
 
@@ -215,6 +215,22 @@ impl<'a> Property<'a> {
             size_cells,
             offset: 0,
         };
+    }
+
+    /// Return iterator for `interrupt` entries.
+    ///
+    /// The `interrupts` property defines a list of `interrupt` entires.
+    pub fn into_interrupt_iter(&self) -> InterruptIter {
+        assert!(self.name == "interrupts");
+
+        let values: &[u32] = unsafe {
+            core::slice::from_raw_parts(
+                self.value.as_ptr().cast(),
+                self.value.len() / mem::size_of::<u32>(),
+            )
+        };
+
+        return InterruptIter { values, idx: 0 };
     }
 }
 
@@ -334,5 +350,28 @@ impl<'a> Iterator for AddrLengthArrayIter<'a> {
         self.offset += size_bytes;
 
         return Some((address, length));
+    }
+}
+
+/// Iterator for `interrupts`.
+#[derive(Debug, Clone)]
+pub struct InterruptIter<'a> {
+    /// Raw value.
+    values: &'a [u32],
+
+    /// Current index
+    idx: usize,
+}
+
+impl<'a> Iterator for InterruptIter<'a> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(value) = self.values.get(self.idx) {
+            self.idx += 1;
+            return Some(u32::from_be(*value));
+        }
+
+        return None;
     }
 }
