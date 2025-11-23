@@ -57,18 +57,32 @@ fn generate_config_rs(configs_options: &[Config]) {
     let mut config_file = fs::File::options()
         .write(true)
         .create(true)
+        .truncate(true)
         .open("./src/config.rs")
         .unwrap();
+
+    /* Add module documentation */
+    writeln!(
+        config_file,
+        "//! Tailor your system simply by using `config.yaml` configuration file.
+//!
+//! # Caution
+//! This file is auto-generated using the `build.rs` script! Do not change any values here, as those
+//! might be overwritten by the next invocation of `cargo build`.
+",
+    )
+    .unwrap();
 
     /* Generate constants */
     for config_option in configs_options {
         let mut var_name = config_option.name.trim().replace("CONFIG_", "");
         var_name.make_ascii_uppercase();
 
-        write!(
+        writeln!(config_file, "/// {}", config_option.description.trim(),).unwrap();
+
+        writeln!(
             config_file,
-            "/// {}\npub const {}: {} = {};\n",
-            config_option.description.trim(),
+            "pub const {}: {} = {};",
             var_name,
             config_option.ty.trim(),
             config_option.value.trim()
