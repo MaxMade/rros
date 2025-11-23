@@ -1,3 +1,10 @@
+//! Driver for NS16550a UART.
+//!
+//! For more information, see:
+//! - [The NS16550A: UART Design and Application
+//! Considerations](https://mth.st/blog/riscv-qemu/AN-491.pdf)
+//! - [(RISCV) RISC-V System, Booting, and
+//! Interrupts](https://marz.utk.edu/my-courses/cosc562/riscv/)
 use core::ptr;
 
 use crate::boot::device_tree::dt::DeviceTree;
@@ -366,6 +373,7 @@ impl UARTNS16550a {
 pub struct Uart(TicketlockDriver<UARTNS16550a>);
 
 impl Uart {
+    /// Create a new `Uart` instance.
     pub const fn new() -> Self {
         Uart(TicketlockDriver::new(UARTNS16550a::new()))
     }
