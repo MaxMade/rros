@@ -11,7 +11,10 @@ use boot::device_tree::dt::DeviceTree;
 use drivers::driver::Driver;
 use sync::level::Level;
 
-use crate::sync::epilogue;
+use crate::sync::{
+    epilogue,
+    level::{Adapter, AdapterGuard},
+};
 
 pub mod arch;
 pub mod boot;
@@ -130,8 +133,15 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
         Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
     };
 
+    // Initialize real time clock
     let level_initialization = match drivers::rtc::RealTimeClock::initiailize(level_initialization)
     {
+        Ok(token) => token,
+        Err((error, _)) => panic!("Unable to initialize real-time clock driver: {}!", error),
+    };
+
+    // Initialize timer
+    let level_initialization = match drivers::timer::Timer::initiailize(level_initialization) {
         Ok(token) => token,
         Err((error, _)) => panic!("Unable to initialize timer driver: {}!", error),
     };
@@ -159,6 +169,14 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 
     // Synchronize with remaining harts
     let level_epilogue = synchronize(level_epilogue);
+
+    // Enable timer interrupts
+    let level_epilogue = {
+        let adapter = sync::level::AdapterEpilogueDriver::new();
+        let (guard, level_driver) = adapter.enter(level_epilogue);
+        let level_driver = drivers::timer::TIMER.as_ref().activate(level_driver);
+        guard.leave(level_driver)
+    };
 
     printk!(
         kernel::printer::LogLevel::Info,
@@ -196,6 +214,14 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Synchronize with remaining harts
     let level_epilogue = synchronize(level_epilogue);
+
+    // Enable timer interrupts
+    let level_epilogue = {
+        let adapter = sync::level::AdapterEpilogueDriver::new();
+        let (guard, level_driver) = adapter.enter(level_epilogue);
+        let level_driver = drivers::timer::TIMER.as_ref().activate(level_driver);
+        guard.leave(level_driver)
+    };
 
     printk!(
         kernel::printer::LogLevel::Info,
