@@ -321,6 +321,7 @@ impl VirtualMemorySystem {
 
     /// Create a new [`VirtualMemorySystem`].
     pub fn new(token: LevelMapping) -> Result<(Self, LevelMapping), (MemoryError, LevelMapping)> {
+        let _ = token;
         todo!();
     }
 
@@ -579,6 +580,10 @@ impl VirtualMemorySystem {
         mode: Mode,
         token: LevelMapping,
     ) -> Result<LevelMapping, (MemoryError, LevelMapping)> {
+        let _ = virt_addr;
+        let _ = protection;
+        let _ = mode;
+        let _ = token;
         todo!();
     }
 
@@ -588,6 +593,8 @@ impl VirtualMemorySystem {
         virt_addr: VirtualAddress<c_void>,
         token: LevelMapping,
     ) -> Result<LevelMapping, (MemoryError, LevelMapping)> {
+        let _ = virt_addr;
+        let _ = token;
         todo!();
     }
 
