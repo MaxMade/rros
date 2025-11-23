@@ -5,6 +5,7 @@
 //! Specification](https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic-1.0.0.pdf)
 //! - [SiFive U54-MC Core Complex Manual](https://static.dev.sifive.com/U54-MC-RVCoreIP.pdf)
 
+use core::ffi::c_void;
 use core::mem;
 use core::ptr;
 
@@ -17,6 +18,7 @@ use crate::kernel::cpu;
 use crate::kernel::cpu::ExecutionMode;
 use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
+use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPrologue;
 use crate::sync::ticketlock::IRQTicketlock;
@@ -286,7 +288,7 @@ impl Driver for InterruptController {
             Some((raw_address, raw_length)) => (raw_address, raw_length),
             None => return Err((DriverError::NonCompatibleDevice, token)),
         };
-        let mut phys_addres = PhysicalAddress::from(raw_address as *mut u8);
+        let phys_address = PhysicalAddress::from(raw_address as *mut c_void);
         let size = raw_length;
 
         // Parse maximum number of supported interrupt sources
@@ -304,8 +306,17 @@ impl Driver for InterruptController {
             _ => return Err((DriverError::NonCompatibleDevice, token)),
         };
 
-        // TODO: Convert physical address to virtual address
-        let virt_address = VirtualAddress::from(phys_addres.as_mut_ptr());
+        // Convert physical address to virtual address
+        let (virt_address, token) =
+            match KERNEL_VIRTUAL_MEMORY_SYSTEM
+                .as_ref()
+                .early_create_dev(phys_address, size, token)
+            {
+                Ok((virt_address, token)) => (unsafe { virt_address.cast() }, token),
+                Err((_, token)) => {
+                    return Err((DriverError::NoDataAvailable, token));
+                }
+            };
 
         // Acquire lock gurad for driver (MMIO space)
         let mut plic = INTERRUPT_CONTROLLER.0.init_lock(token);

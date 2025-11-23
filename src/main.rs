@@ -63,8 +63,6 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     // Load mapping
     mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();
 
-    // Map device tree
-
     // Initialize device tree
     // # Safety
     // The provided pointer to the device tree blob is valid and thus safe to use.
