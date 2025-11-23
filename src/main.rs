@@ -102,6 +102,12 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
         Err((error, _)) => panic!("Unable to initialize UART driver: {}!", error),
     };
 
+    let level_initialization =
+        match drivers::timer::GoldfishTimer::initiailize(level_initialization) {
+            Ok(token) => token,
+            Err((error, _)) => panic!("Unable to initialize timer driver: {}!", error),
+        };
+
     // Finalize trap handlers **after** initialization of drivers
     let level_initialization = trap::handlers::TrapHandlers::finalize(level_initialization);
 
