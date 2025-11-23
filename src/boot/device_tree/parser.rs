@@ -1,3 +1,5 @@
+//! Device tree parser.
+
 use crate::boot::device_tree::header;
 use crate::boot::device_tree::memory_reservation_block;
 use crate::boot::device_tree::node;

@@ -1,3 +1,5 @@
+//! Node within the device tree.
+
 use crate::boot::device_tree::parser;
 use crate::boot::device_tree::property;
 use crate::boot::device_tree::structure_block;

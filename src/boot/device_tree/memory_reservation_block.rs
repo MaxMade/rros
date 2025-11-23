@@ -1,3 +1,5 @@
+//! Abstraction of reserved physical memory regions.
+
 use crate::boot::device_tree::parser;
 
 /// Iterator for memory reservation entries.

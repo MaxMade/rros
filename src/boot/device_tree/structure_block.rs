@@ -1,3 +1,5 @@
+//! Tokens within the structure block.
+
 use crate::boot::device_tree::node;
 use crate::boot::device_tree::parser;
 use crate::boot::device_tree::property;

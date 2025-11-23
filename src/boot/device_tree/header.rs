@@ -1,3 +1,7 @@
+//! Flattened Devicetree Header.
+//!
+//! See Section 5.2 Header.
+
 /// Flattened Devicetree Header.
 ///
 /// See Section 5.2 Header.

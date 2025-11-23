@@ -1,3 +1,5 @@
+//! Single property within device tree node.
+
 use crate::boot::device_tree::node;
 
 use core::mem;
@@ -5,6 +7,7 @@ use core::str;
 
 use core::fmt::Display;
 
+/// Single property within device tree node.
 #[derive(Debug)]
 pub struct Property<'a> {
     /// Reference to associated node.

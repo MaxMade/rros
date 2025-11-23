@@ -9,6 +9,7 @@ use crate::boot::device_tree::property::PropertyValue;
 
 static DEVICE_TREE: InitCell<DeviceTree> = InitCell::new();
 
+/// Abstraction of a device tree.
 #[derive(Debug)]
 pub struct DeviceTree {
     parser: Parser,
