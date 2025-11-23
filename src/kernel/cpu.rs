@@ -27,9 +27,9 @@ impl Display for HartID {
 
 /// Abstraction of `tp` (thread pointer) register.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ThreadPointer(u64);
+pub struct TP(u64);
 
-impl ThreadPointer {
+impl TP {
     // Create zeroed abstraction of `tp` register.
     pub fn new(value: u64) -> Self {
         Self { 0: value }
@@ -69,17 +69,17 @@ impl ThreadPointer {
 /// #See
 /// Section `4.1.1 Supervisor Status Register (sstatus)` of `Volume II: RISC-V Privileged Architectures`
 #[derive(Debug)]
-pub struct SupervisorStatusRegister(u64);
+pub struct SStatus(u64);
 
-impl SupervisorStatusRegister {
-    /// Create new, initialized `SupervisorStatusRegister`.
+impl SStatus {
+    /// Create new, initialized `SStatus`.
     pub fn new() -> Self {
-        let mut reg = SupervisorStatusRegister(0);
+        let mut reg = SStatus(0);
         reg.read();
         return reg;
     }
 
-    /// Update value of `SupervisorStatusRegister` based on underlying  `sstatus` register.
+    /// Update value of `SStatus` based on underlying  `sstatus` register.
     pub fn read(&mut self) {
         let mut x: u64;
         unsafe {
@@ -91,7 +91,7 @@ impl SupervisorStatusRegister {
         self.0 = x;
     }
 
-    /// Update `sstatus` register based on value of `SupervisorStatusRegister`.
+    /// Update `sstatus` register based on value of `SStatus`.
     pub fn write(&self) {
         let x: u64 = self.0;
         unsafe {
@@ -100,6 +100,11 @@ impl SupervisorStatusRegister {
                 x = in(reg) x,
             );
         }
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
     }
 
     /// Get `Global Interrupt-Enable Bit` for `S-Mode` (`SIE`)
@@ -112,7 +117,7 @@ impl SupervisorStatusRegister {
     /// # Examples
     /// ```
     /// // Disable SIE
-    /// let mut sstatus = SupervisorStatusRegister::new();
+    /// let mut sstatus = SStatus::new();
     /// sstatus.set_sie(false);
     /// sstatus.write();
     /// ```
@@ -137,64 +142,64 @@ impl SupervisorStatusRegister {
     }
 
     /// Get `Big-Endian Enable Bit` for `U-Mode` (`UBE`)
-    pub fn get_ube(&self) -> SupervisorStatusRegisterEndiannes {
+    pub fn get_ube(&self) -> SStatusEndianness {
         match (self.0 >> 6) & 0b1 {
-            0 => SupervisorStatusRegisterEndiannes::LittleEndian,
-            1 => SupervisorStatusRegisterEndiannes::LittleEndian,
+            0 => SStatusEndianness::LittleEndian,
+            1 => SStatusEndianness::LittleEndian,
             _ => panic!(),
         }
     }
 
     /// Set `Big-Endian Enable Bit` for `U-Mode` (`UBE`)
-    pub fn set_ube(&mut self, value: SupervisorStatusRegisterEndiannes) {
+    pub fn set_ube(&mut self, value: SStatusEndianness) {
         self.0 &= !(0b1 << 6);
         self.0 |= ((value as u64) & 0b1) << 6;
     }
 
     /// Get `Global Preserved Privilege Level` for `S-Mode` (`SPP`)
-    pub fn get_spp(&self) -> SupervisorStatusRegisterPrivilegeLevel {
+    pub fn get_spp(&self) -> SStatusPrivLevel {
         match (self.0 >> 8) & 0b1 {
-            0 => SupervisorStatusRegisterPrivilegeLevel::UserMode,
-            1 => SupervisorStatusRegisterPrivilegeLevel::SupervisorMode,
+            0 => SStatusPrivLevel::UserMode,
+            1 => SStatusPrivLevel::SupervisorMode,
             _ => panic!(),
         }
     }
 
     /// Set `Global Preserved Interrupt-Enable Bit` for `S-Mode` (`SPP`)
-    pub fn set_spp(&mut self, value: SupervisorStatusRegisterPrivilegeLevel) {
+    pub fn set_spp(&mut self, value: SStatusPrivLevel) {
         self.0 &= !(0b1 << 8);
         self.0 |= ((value as u64) & 0b1) << 8;
     }
 
     /// Get `Vector Unit Extension Status`.
-    pub fn get_vs(&self) -> SupervisorStatusRegisterUnitStatus {
+    pub fn get_vs(&self) -> SStatusUnitStatus {
         match (self.0 >> 9) & 0b11 {
-            0b00 => SupervisorStatusRegisterUnitStatus::Off,
-            0b01 => SupervisorStatusRegisterUnitStatus::Initial,
-            0b10 => SupervisorStatusRegisterUnitStatus::Clean,
-            0b11 => SupervisorStatusRegisterUnitStatus::Dirty,
+            0b00 => SStatusUnitStatus::Off,
+            0b01 => SStatusUnitStatus::Initial,
+            0b10 => SStatusUnitStatus::Clean,
+            0b11 => SStatusUnitStatus::Dirty,
             _ => panic!(),
         }
     }
 
     /// Get `Floating-Point Unit Extension Status`.
-    pub fn get_fs(&self) -> SupervisorStatusRegisterUnitStatus {
+    pub fn get_fs(&self) -> SStatusUnitStatus {
         match (self.0 >> 13) & 0b11 {
-            0b00 => SupervisorStatusRegisterUnitStatus::Off,
-            0b01 => SupervisorStatusRegisterUnitStatus::Initial,
-            0b10 => SupervisorStatusRegisterUnitStatus::Clean,
-            0b11 => SupervisorStatusRegisterUnitStatus::Dirty,
+            0b00 => SStatusUnitStatus::Off,
+            0b01 => SStatusUnitStatus::Initial,
+            0b10 => SStatusUnitStatus::Clean,
+            0b11 => SStatusUnitStatus::Dirty,
             _ => panic!(),
         }
     }
 
     /// Get `Addtional User-Mode Unit Extension Status`.
-    pub fn get_xs(&self) -> SupervisorStatusRegisterUnitStatus {
+    pub fn get_xs(&self) -> SStatusUnitStatus {
         match (self.0 >> 15) & 0b11 {
-            0b00 => SupervisorStatusRegisterUnitStatus::Off,
-            0b01 => SupervisorStatusRegisterUnitStatus::Initial,
-            0b10 => SupervisorStatusRegisterUnitStatus::Clean,
-            0b11 => SupervisorStatusRegisterUnitStatus::Dirty,
+            0b00 => SStatusUnitStatus::Off,
+            0b01 => SStatusUnitStatus::Initial,
+            0b10 => SStatusUnitStatus::Clean,
+            0b11 => SStatusUnitStatus::Dirty,
             _ => panic!(),
         }
     }
@@ -242,33 +247,9 @@ impl SupervisorStatusRegister {
     }
 }
 
-impl Display for SupervisorStatusRegister {
+impl Display for SStatus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#066x}", self.0)
-    }
-}
-
-impl From<u64> for SupervisorStatusRegister {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<usize> for SupervisorStatusRegister {
-    fn from(value: usize) -> Self {
-        Self(value.try_into().unwrap())
-    }
-}
-
-impl From<SupervisorStatusRegister> for u64 {
-    fn from(value: SupervisorStatusRegister) -> Self {
-        value.0
-    }
-}
-
-impl From<SupervisorStatusRegister> for usize {
-    fn from(value: SupervisorStatusRegister) -> Self {
-        value.0.try_into().unwrap()
+        write!(f, "{:#018x}", self.0)
     }
 }
 
@@ -277,18 +258,18 @@ impl From<SupervisorStatusRegister> for usize {
 /// #See
 /// Section `4.1.1.3 Endianness Control in sstatus Register` of `Volume II: RISC-V Privileged Architectures`
 #[derive(Debug, PartialEq, Eq)]
-pub enum SupervisorStatusRegisterEndiannes {
+pub enum SStatusEndianness {
     /// Little endian.
     LittleEndian = 0b0,
     /// Big endian.
     BigEndian = 0b1,
 }
 
-impl Display for SupervisorStatusRegisterEndiannes {
+impl Display for SStatusEndianness {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            SupervisorStatusRegisterEndiannes::LittleEndian => write!(f, "big-endian"),
-            SupervisorStatusRegisterEndiannes::BigEndian => write!(f, "little-endian"),
+            SStatusEndianness::LittleEndian => write!(f, "big-endian"),
+            SStatusEndianness::BigEndian => write!(f, "little-endian"),
         }
     }
 }
@@ -298,18 +279,18 @@ impl Display for SupervisorStatusRegisterEndiannes {
 /// #See
 /// Section `8.6.2 Trap Entry` of `Volume II: RISC-V Privileged Architectures`
 #[derive(Debug, PartialEq, Eq)]
-pub enum SupervisorStatusRegisterPrivilegeLevel {
+pub enum SStatusPrivLevel {
     /// Trap was taken from user mode.
     UserMode = 0b0,
     /// Trap was taken from supervisor mode.
     SupervisorMode = 0b1,
 }
 
-impl Display for SupervisorStatusRegisterPrivilegeLevel {
+impl Display for SStatusPrivLevel {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            SupervisorStatusRegisterPrivilegeLevel::UserMode => write!(f, "user-mode"),
-            SupervisorStatusRegisterPrivilegeLevel::SupervisorMode => write!(f, "supervisor-mode"),
+            SStatusPrivLevel::UserMode => write!(f, "user-mode"),
+            SStatusPrivLevel::SupervisorMode => write!(f, "supervisor-mode"),
         }
     }
 }
@@ -319,7 +300,7 @@ impl Display for SupervisorStatusRegisterPrivilegeLevel {
 /// #See
 /// Section `3.1.6.6 Extension Context Status in sstatus Register` of `Volume II: RISC-V Privileged Architectures`
 #[derive(Debug, PartialEq, Eq)]
-pub enum SupervisorStatusRegisterUnitStatus {
+pub enum SStatusUnitStatus {
     /// Offline state.
     Off = 0b00,
     /// Initial state.
@@ -330,13 +311,13 @@ pub enum SupervisorStatusRegisterUnitStatus {
     Dirty = 0b11,
 }
 
-impl Display for SupervisorStatusRegisterUnitStatus {
+impl Display for SStatusUnitStatus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            SupervisorStatusRegisterUnitStatus::Off => write!(f, "off"),
-            SupervisorStatusRegisterUnitStatus::Initial => write!(f, "initial"),
-            SupervisorStatusRegisterUnitStatus::Clean => write!(f, "clean"),
-            SupervisorStatusRegisterUnitStatus::Dirty => write!(f, "dirty"),
+            SStatusUnitStatus::Off => write!(f, "off"),
+            SStatusUnitStatus::Initial => write!(f, "initial"),
+            SStatusUnitStatus::Clean => write!(f, "clean"),
+            SStatusUnitStatus::Dirty => write!(f, "dirty"),
         }
     }
 }

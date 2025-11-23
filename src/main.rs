@@ -62,7 +62,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = kernel::cpu::ThreadPointer::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     // Initialize serial driver
@@ -81,7 +81,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = kernel::cpu::ThreadPointer::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     loop {}
