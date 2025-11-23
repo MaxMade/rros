@@ -60,7 +60,7 @@ fn synchronize(token: sync::level::LevelEpilogue) -> sync::level::LevelEpilogue 
 /// Kernel initialization routine entered by boot processor
 #[no_mangle]
 pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -> ! {
-    let hart_id = arch::cpu::HartID::new(hart_id);
+    let hart_id = kernel::cpu_map::HartID::new(hart_id);
 
     // Create initialization token
     // # Safety
@@ -172,7 +172,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 /// Kernel initialization routine entered by application processors
 #[no_mangle]
 pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
-    let hart_id = arch::cpu::HartID::new(hart_id);
+    let hart_id = kernel::cpu_map::HartID::new(hart_id);
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);

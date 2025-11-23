@@ -10,7 +10,6 @@ use core::mem;
 use core::ptr;
 
 use crate::arch::cpu::ExecutionMode;
-use crate::arch::cpu::HartID;
 use crate::boot::device_tree::dt::DeviceTree;
 use crate::config;
 use crate::drivers::driver::{Driver, DriverError};
@@ -18,6 +17,7 @@ use crate::drivers::mmio::MMIOSpace;
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::cpu;
 use crate::kernel::cpu_map;
+use crate::kernel::cpu_map::HartID;
 use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::level::LevelInitialization;
 use crate::sync::level::LevelPrologue;

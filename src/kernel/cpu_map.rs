@@ -2,13 +2,33 @@
 
 use core::fmt::Display;
 
-use crate::arch::cpu::HartID;
 use crate::boot::device_tree::dt::DeviceTree;
 use crate::config;
+use crate::kernel::sbi;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 
-use super::sbi;
+/// Abstraction of hard ID.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct HartID(u64);
+
+impl HartID {
+    /// Create HartID from raw value.
+    pub const fn new(value: u64) -> Self {
+        Self { 0: value }
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
+
+impl Display for HartID {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#018x}", self.0)
+    }
+}
 
 /// Logical CPU ID.
 ///

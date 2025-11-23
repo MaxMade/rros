@@ -36,28 +36,6 @@ impl Display for dyn CSR {
     }
 }
 
-/// Abstraction of hard ID.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HartID(u64);
-
-impl HartID {
-    /// Create HartID from raw value.
-    pub const fn new(value: u64) -> Self {
-        Self { 0: value }
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl Display for HartID {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#018x}", self.0)
-    }
-}
-
 /// Abstraction of `tp` (thread pointer) register.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TP(u64);

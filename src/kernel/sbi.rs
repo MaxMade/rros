@@ -412,7 +412,7 @@ impl From<isize> for SBIHartState {
 /// | `a0`          | `hard_id`      |
 /// | `a1`          | `arg`          |
 pub fn start_hart(
-    hart_id: arch::cpu::HartID,
+    hart_id: kernel::cpu_map::HartID,
     start_addr: kernel::address::PhysicalAddress<unsafe extern "C" fn(isize, isize)>,
     arg: isize,
 ) -> Result<(), SBIError> {
@@ -437,7 +437,7 @@ pub fn start_hart(
 /// Get the current hart status.
 ///
 /// * `hart_id`: Target hart ID.
-pub fn status_hart(hart_id: arch::cpu::HartID) -> Result<SBIHartState, SBIError> {
+pub fn status_hart(hart_id: kernel::cpu_map::HartID) -> Result<SBIHartState, SBIError> {
     let hart_id = hart_id.raw();
     match sbi_ecall_1(
         SBIExtensionID::HartStateManagement,
