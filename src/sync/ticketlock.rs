@@ -41,6 +41,14 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         }
     }
 
+    /// Returns a mutable reference to the underlying data.
+    ///
+    /// Since this call borrows the [`Ticketlock`] mutably, no actual locking needs to take place –
+    /// the mutable borrow statically guarantees no locks exist.
+    pub fn get_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.data.get() }
+    }
+
     /// Acquire lock while consume `UpperLevel` `token` (and producing `LowerLevel` `token`).
     #[inline]
     pub fn lock(
@@ -236,6 +244,14 @@ impl<T> IRQTicketlock<T> {
         Self {
             lock: Ticketlock::new(value),
         }
+    }
+
+    /// Returns a mutable reference to the underlying data.
+    ///
+    /// Since this call borrows the [`Ticketlock`] mutably, no actual locking needs to take place –
+    /// the mutable borrow statically guarantees no locks exist.
+    pub fn get_mut(&mut self) -> &mut T {
+        self.lock.get_mut()
     }
 
     /// Disable interrupts and acquire lock (and saving [`InterruptFlag`]) while consume [`LevelPrologue`] `token` (and producing
