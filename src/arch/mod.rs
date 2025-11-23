@@ -1,6 +1,7 @@
 //! Architecture specifics.
 
 pub mod cpu;
+pub mod scause;
 pub mod sepc;
 pub mod sie;
 pub mod sip;

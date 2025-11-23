@@ -2,7 +2,7 @@
 
 use core::fmt::Display;
 
-use crate::arch::cpu::SCause;
+use crate::arch::scause::SCause;
 
 /// Interrupt reasons.
 ///
