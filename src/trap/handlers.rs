@@ -216,7 +216,10 @@ pub trait TrapHandler: Sync {
     /// of all deferrable task. Thus, locking/blocking/waiting/... is allowed! While `prologue`
     /// must be implemented by every [`TrapHandler`], the `epilogue` is optional.
     fn epilogue(&self, state: Option<&mut TrapContext>, token: LevelEpilogue) -> LevelEpilogue {
-        /* Nothing to do here */
+        // Ignore state
+        let _ = state;
+
+        // Nothing to do here
         token
     }
 }
