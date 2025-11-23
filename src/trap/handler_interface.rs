@@ -6,7 +6,7 @@ use crate::kernel::cpu;
 
 use crate::arch::cpu::SCause;
 use crate::arch::cpu::STVal;
-use crate::arch::cpu::SEPC;
+use crate::arch::sepc::SEPC;
 use crate::arch::sscratch::SScratch;
 use crate::arch::sstatus::SStatus;
 use crate::sync::epilogue;
@@ -368,7 +368,7 @@ impl TrapContext {
 
     /// Set register `sepc` of [`TrapContext`].
     pub fn set_sepc(&mut self, sepc: SEPC) {
-        self.0[31] = sepc.raw();
+        self.0[31] = sepc.inner();
     }
 
     /// Set register `scause` of [`TrapContext`].
