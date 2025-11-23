@@ -17,3 +17,4 @@ pub mod stimecmp;
 pub mod stval;
 pub mod stvec;
 pub mod time;
+pub mod tp;

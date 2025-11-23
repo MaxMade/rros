@@ -108,7 +108,7 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = arch::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = arch::tp::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     // Initialize trap vector
@@ -176,7 +176,7 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
 
     // Write logical core ID to thread register
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
-    let tp = arch::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
+    let tp = arch::tp::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
 
     // Initialize trap vector

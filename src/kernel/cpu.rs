@@ -5,11 +5,11 @@ use core::marker::PhantomData;
 use core::mem;
 
 use crate::arch::cpu::CSR;
-use crate::arch::cpu::TP;
 use crate::arch::sie::SIE;
 use crate::arch::sstatus::SStatus;
 use crate::arch::stvec::STVec;
 use crate::arch::stvec::STVecMode;
+use crate::arch::tp::TP;
 use crate::kernel::cpu_map::LogicalCPUID;
 use crate::sync::level::Level;
 use crate::sync::level::LevelPrologue;
