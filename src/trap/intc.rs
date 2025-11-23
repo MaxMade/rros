@@ -18,7 +18,7 @@ use crate::kernel::cpu::HartID;
 use crate::kernel::cpu_map;
 use crate::sync::level::LevelDriver;
 use crate::sync::level::LevelInitialization;
-use crate::sync::ticketlock::IRQTicketlockDriver;
+use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
 
 /// Global interrupt controller instance.
@@ -39,7 +39,7 @@ struct PLIC {
 }
 
 /// Driver for PLIC of SiFive U5 Coreplex platform
-pub struct InterruptController(IRQTicketlockDriver<PLIC>);
+pub struct InterruptController(IRQTicketlock<PLIC>);
 
 /// Register offsets (in bytes) relative to start of configuration space.
 #[derive(Debug)]
@@ -165,7 +165,7 @@ impl InterruptController {
     /// Create a new uninitialized `InterruptController` instance.
     pub const fn new() -> Self {
         unsafe {
-            Self(IRQTicketlockDriver::new(PLIC {
+            Self(IRQTicketlock::new(PLIC {
                 config_space: MMIOSpace::new(VirtualAddress::new(ptr::null_mut()), 0),
                 num_intr_sources: 0,
                 num_harts: 0,

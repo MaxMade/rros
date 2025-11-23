@@ -19,6 +19,7 @@ use crate::sync::level::LevelPrologue;
 use crate::sync::level::LevelScheduler;
 
 use super::level::LevelInitialization;
+use super::level::LevelLockedPrologue;
 
 /// Generic Ticketlock
 pub struct Ticketlock<T, UpperLevel: Level, LowerLevel: Level> {
@@ -218,11 +219,11 @@ pub type TicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelMemory>;
 pub type TicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;
 
 /// Interrupt-safe Ticketlock
-pub struct IRQTicketlock<T, UpperLevel: Level, LowerLevel: Level> {
-    lock: Ticketlock<T, UpperLevel, LowerLevel>,
+pub struct IRQTicketlock<T> {
+    lock: Ticketlock<T, LevelPrologue, LevelLockedPrologue>,
 }
 
-impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, LowerLevel> {
+impl<T> IRQTicketlock<T> {
     /// Create a new `IRQTicketlock`
     pub const fn new(value: T) -> Self {
         Self {
@@ -230,15 +231,15 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
         }
     }
 
-    /// Disable interrupts and acquire lock (and saving `InterruptFlag`) while consume `UpperLevel` `token` (and producing
-    /// `LowerLevel` `token`).
+    /// Disable interrupts and acquire lock (and saving [`InterruptFlag`]) while consume [`LevelPrologue`] `token` (and producing
+    /// [`LevelLockedPrologue`] `token`).
     #[inline]
     pub fn lock(
         &self,
-        token: UpperLevel,
+        token: LevelPrologue,
     ) -> (
-        IRQTicketlockGuard<'_, T, UpperLevel, LowerLevel>,
-        LowerLevel,
+        IRQTicketlockGuard<'_, T, LevelPrologue, LevelLockedPrologue>,
+        LevelLockedPrologue,
     ) {
         let flag = cpu::save_and_disable_interrupts();
         let (guard, token) = self.lock.lock(token);
@@ -263,18 +264,18 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
         return guard;
     }
 
-    /// Try to disable interrupts and acquire lock (and saving `InterruptFlag`) while consume `UpperLevel` `token` (and producing
-    /// `LowerLevel` `token`).
+    /// Try to disable interrupts and acquire lock (and saving [`InterruptFlag`]) while consume [`LevelPrologue`] `token` (and producing
+    /// [`LevelLockedPrologue`] `token`).
     #[inline]
     pub fn try_lock(
         &self,
-        token: UpperLevel,
+        token: LevelPrologue,
     ) -> Result<
         (
-            IRQTicketlockGuard<'_, T, UpperLevel, LowerLevel>,
-            LowerLevel,
+            IRQTicketlockGuard<'_, T, LevelPrologue, LevelLockedPrologue>,
+            LevelLockedPrologue,
         ),
-        UpperLevel,
+        LevelPrologue,
     > {
         let flag = cpu::save_and_disable_interrupts();
 
@@ -303,15 +304,9 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
     }
 }
 
-unsafe impl<T: Send, UpperLevel: Level, LowerLevel: Level> Sync
-    for IRQTicketlock<T, UpperLevel, LowerLevel>
-{
-}
+unsafe impl<T: Send> Sync for IRQTicketlock<T> {}
 
-unsafe impl<T: Send, UpperLevel: Level, LowerLevel: Level> Send
-    for IRQTicketlock<T, UpperLevel, LowerLevel>
-{
-}
+unsafe impl<T: Send> Send for IRQTicketlock<T> {}
 
 /// Interrupt-safe ticketlock guard.
 pub struct IRQTicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
@@ -322,7 +317,7 @@ pub struct IRQTicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
 impl<'a, T, UpperLevel: Level, LowerLevel: Level>
     IRQTicketlockGuard<'a, T, UpperLevel, LowerLevel>
 {
-    /// Release lock and restoring the saved `InterruptFlag` while consume `LowerLevel` `token`
+    /// Release lock and restoring the saved [`InterruptFlag`] while consume `LowerLevel` `token`
     /// (and producing `UpperLevel` `token`).
     #[inline]
     pub fn unlock(self, token: LowerLevel) -> UpperLevel {
@@ -331,8 +326,8 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level>
         return token;
     }
 
-    /// Release lock and restoring the saved `InterruptFlag` while consume `LowerLevel` `token`
-    /// (and producing `UpperLevel` `token`) without doing anything at all
+    /// Release lock and restoring the saved [`InterruptFlag`]
+    /// and producing [`LevelPrologue`] `token` without doing anything at all
     #[inline]
     pub fn init_unlock(self) -> LevelInitialization {
         self.guard.init_unlock()
@@ -356,15 +351,3 @@ impl<'a, T, UpperLevel: Level, LowerLevel: Level> DerefMut
         self.guard.deref_mut()
     }
 }
-
-/// Specialized [`IRQTicketlock`] for locking `Epilogue` level.
-pub type IRQTicketlockEpilogue<T> = Ticketlock<T, LevelEpilogue, LevelPrologue>;
-
-/// Specialized [`IRQTicketlock`] for locking `Driver` level.
-pub type IRQTicketlockDriver<T> = Ticketlock<T, LevelDriver, LevelPrologue>;
-
-/// Specialized [`IRQTicketlock`] for locking `Scheduler` level.
-pub type IRQTicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelPrologue>;
-
-/// Specialized [`IRQTicketlock`] for locking `Memory` level.
-pub type IRQTicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;
