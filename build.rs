@@ -235,7 +235,7 @@ where
     /// Change back from `LowerLevel` to `HigherLevel` while consuming `LowerLevel`.
     unsafe fn leave(self) -> Self::HigherLevel {{
         assert!(Self::level() < Self::HigherLevel::level());
-        Self::HigherLevel::create()
+        unsafe {{ Self::HigherLevel::create() }}
     }}
 }}"
     )
@@ -257,7 +257,7 @@ where
     fn new() -> Self;
 
     /// Change from `HigherLevel` to `LowerLevel` while consuming `HigherLevel`.
-    unsafe fn enter(self, level: HigherLevel) -> Guard {{
+    fn enter(self, level: HigherLevel) -> (Guard, LowerLevel) {{
         // Consule level
         let _ = level;
 
@@ -265,7 +265,11 @@ where
         assert!(HigherLevel::level() > LowerLevel::level());
 
         // Create guard
-        Guard::new()
+        let guard = Guard::new();
+
+        // Create level
+        let level = unsafe {{ LowerLevel::create() }};
+        (guard, level)
     }}
 }}
 
@@ -277,10 +281,10 @@ where
     LowerLevel: Level,
 {{
     /// Create a new [`AdapterGuard`].
-    unsafe fn new() -> Self;
+    fn new() -> Self;
 
     /// Change back from `LowerLevel` to `HigherLevel` while consuming `LowerLevel`.
-    unsafe fn leave(self, level: LowerLevel) -> HigherLevel {{
+    fn leave(self, level: LowerLevel) -> HigherLevel {{
         // Consule level
         let _ = level;
 
@@ -288,7 +292,7 @@ where
         assert!(HigherLevel::level() > LowerLevel::level());
 
         // Produce level
-        HigherLevel::create()
+        unsafe {{ HigherLevel::create() }}
     }}
 }}"
     )
@@ -413,7 +417,7 @@ impl Adapter<Level{}, Level{}, AdapterGuard{}{}> for Adapter{}{} {{
 }}
 
 impl AdapterGuard<Level{}, Level{}> for AdapterGuard{}{} {{
-    unsafe fn new() -> Self {{
+    fn new() -> Self {{
         Self {{
             phantom: PhantomData,
         }}
