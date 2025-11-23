@@ -73,12 +73,18 @@ impl PageFrameAllocator {
 
                     // Calculate address of page
                     let page_offset = (u64::BITS as usize * idx + offset) * cpu::page_size();
-                    let page = Self::virt_to_phys(compiler::pages_mem_start()).add(page_offset);
-                    assert!(page.addr() % cpu::page_size() == 0);
-                    assert!(page >= Self::virt_to_phys(compiler::pages_mem_start()));
-                    assert!(page < Self::virt_to_phys(compiler::pages_mem_end()));
+                    let mut v_page = compiler::pages_mem_start().add(page_offset);
+                    let p_page = Self::virt_to_phys(v_page);
 
-                    return Ok((page, token));
+                    // Sanity check
+                    assert!(v_page.addr() % cpu::page_size() == 0);
+                    assert!(v_page >= compiler::pages_mem_start());
+                    assert!(v_page < compiler::pages_mem_end());
+
+                    // Zero page
+                    unsafe { v_page.as_mut_ptr().write_bytes(0, cpu::page_size()) };
+
+                    return Ok((p_page, token));
                 }
             }
         }
@@ -95,13 +101,16 @@ impl PageFrameAllocator {
     /// - `ptr` refers to a block of memory currently allocated via this allocator.
     /// - the references page is still in use.
     pub unsafe fn free(self, page: PhysicalAddress<c_void>, token: LevelPaging) -> LevelPaging {
+        let p_page = page;
+        let v_page = Self::phys_to_virt(p_page);
+
         // Sanity check: Is page valid?
-        assert!(page.addr() % cpu::page_size() == 0);
-        assert!(page >= Self::virt_to_phys(compiler::pages_mem_start()));
-        assert!(page < Self::virt_to_phys(compiler::pages_mem_end()));
+        assert!(v_page.addr() % cpu::page_size() == 0);
+        assert!(v_page >= compiler::pages_mem_start());
+        assert!(v_page < compiler::pages_mem_end());
 
         // Calculate offset
-        let page_offset = page.addr() - Self::virt_to_phys(compiler::pages_mem_start()).addr();
+        let page_offset = v_page.addr() - compiler::pages_mem_start().addr();
         let idx = (page_offset / cpu::page_size()) / u64::BITS as usize;
         let offset = (page_offset / cpu::page_size()) % u64::BITS as usize;
 
@@ -119,8 +128,28 @@ impl PageFrameAllocator {
         return token;
     }
 
-    fn virt_to_phys<T>(phys: VirtualAddress<T>) -> PhysicalAddress<T> {
-        unsafe { PhysicalAddress::new(phys.byte_sub(ADDRESS_SHIFT as usize).as_mut_ptr()) }
+    /// Convert [`VirtualAddress`] returned by
+    /// [`allocate`](crate::mm::page_allocator::PageFrameAllocator::allocate), to a [`PhysicalAddress`].
+    pub fn virt_to_phys<T>(virt_addr: VirtualAddress<T>) -> PhysicalAddress<T> {
+        // Sanity check: Refers virt_addr a valid page?
+        assert!(virt_addr.addr() % cpu::page_size() == 0);
+        assert!(virt_addr >= unsafe { compiler::pages_mem_start().cast() });
+        assert!(virt_addr < unsafe { compiler::pages_mem_end().cast() });
+
+        unsafe { PhysicalAddress::new(virt_addr.byte_sub(ADDRESS_SHIFT as usize).as_mut_ptr()) }
+    }
+
+    /// Convert [`PhysicalAddress`] returned by
+    /// [`allocate`](crate::mm::page_allocator::PageFrameAllocator::allocate), to a [`VirtualAddress`].
+    pub fn phys_to_virt<T>(phys_addr: PhysicalAddress<T>) -> VirtualAddress<T> {
+        let virt_addr =
+            unsafe { VirtualAddress::new(phys_addr.byte_add(ADDRESS_SHIFT as usize).as_mut_ptr()) };
+
+        // Sanity check: Refers virt_addr a valid page?
+        assert!(virt_addr.addr() % cpu::page_size() == 0);
+        assert!(virt_addr >= unsafe { compiler::pages_mem_start().cast() });
+        assert!(virt_addr < unsafe { compiler::pages_mem_end().cast() });
+        virt_addr
     }
 }
 
