@@ -150,14 +150,16 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -
     // Enter epilogue level
     let level_epilogue = epilogue::try_enter().unwrap();
 
-    // Synchronize with remaining harts
-    let level_epilogue = synchronize(level_epilogue);
-
     // Enable interrupts
     unsafe {
         kernel::cpu::unmask_all_interrupts();
         kernel::cpu::enable_interrupts();
     }
+
+    // Synchronize with remaining harts
+    let level_epilogue = synchronize(level_epilogue);
+
+    let level_epilogue = drivers::timer::activate(level_epilogue);
 
     printk!(
         kernel::printer::LogLevel::Info,
@@ -187,14 +189,14 @@ pub extern "C" fn kernel_ap_init(hart_id: u64) -> ! {
     // Enter epilogue level
     let level_epilogue = epilogue::try_enter().unwrap();
 
-    // Synchronize with remaining harts
-    let level_epilogue = synchronize(level_epilogue);
-
     // Enable interrupts
     unsafe {
         kernel::cpu::unmask_all_interrupts();
         kernel::cpu::enable_interrupts();
     }
+
+    // Synchronize with remaining harts
+    let level_epilogue = synchronize(level_epilogue);
 
     printk!(
         kernel::printer::LogLevel::Info,

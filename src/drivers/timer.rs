@@ -19,6 +19,10 @@ use crate::kernel::address::PhysicalAddress;
 use crate::kernel::cpu;
 use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
+use crate::sync::level::Adapter;
+use crate::sync::level::AdapterEpiloguePrologue;
+use crate::sync::level::AdapterGuard;
+use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelInitialization;
 use crate::sync::ticketlock::IRQTicketlock;
 use crate::trap::cause::Interrupt;
@@ -63,6 +67,40 @@ pub struct GoldfishTimer {
     pub(in crate::drivers::timer) config_space: IRQTicketlock<MMIOSpace>,
     /// Interrupt configuration.
     pub(in crate::drivers::timer) interrupt: Interrupt,
+}
+
+/// Activate timer.
+pub fn activate(token: LevelEpilogue) -> LevelEpilogue {
+    let adapter = AdapterEpiloguePrologue::new();
+    let (guard, token) = adapter.enter(token);
+    let (mut config_space, token) = TIMER.as_ref().config_space.lock(token);
+
+    // Read time
+    let time_low = config_space
+        .load::<u32>(RegisterOffset::TimeLow as usize)
+        .unwrap() as u64;
+    let time_high = config_space
+        .load::<u32>(RegisterOffset::TimeHigh as usize)
+        .unwrap() as u64;
+    let time = (time_high << 32) | time_low;
+
+    // Configure alarm
+    let alarm = time.wrapping_add(TIMER_INTERVAL_NS);
+    config_space
+        .store(RegisterOffset::AlarmHigh as usize, (alarm >> 32) as u32)
+        .unwrap();
+    config_space
+        .store(RegisterOffset::AlarmLow as usize, alarm as u32)
+        .unwrap();
+
+    // Enable interrupts
+    config_space
+        .store(RegisterOffset::IrqEnabled as usize, 1u32)
+        .unwrap();
+
+    let token = config_space.unlock(token);
+    let token = guard.leave(token);
+    token
 }
 
 impl Driver for GoldfishTimer {
@@ -138,30 +176,6 @@ impl Driver for GoldfishTimer {
         let config_space = uart.config_space.get_mut();
         *config_space = mmio_space;
 
-        // Configure alarm
-        config_space
-            .store(
-                RegisterOffset::AlarmHigh as usize,
-                (TIMER_INTERVAL_NS >> 32) as u32,
-            )
-            .unwrap();
-        config_space
-            .store(RegisterOffset::AlarmLow as usize, TIMER_INTERVAL_NS as u32)
-            .unwrap();
-
-        // Configure time
-        config_space
-            .store(RegisterOffset::TimeHigh as usize, 0u32)
-            .unwrap();
-        config_space
-            .store(RegisterOffset::TimeLow as usize, 0u32)
-            .unwrap();
-
-        // Enable interrupts
-        config_space
-            .store(RegisterOffset::IrqEnabled as usize, 1u32)
-            .unwrap();
-
         // Unlock driver
         let token = uart.destroy();
 
@@ -194,7 +208,7 @@ impl TrapHandler for GoldfishTimer {
         // Lock driver
         let (mut config_space, token) = TIMER.as_ref().config_space.lock(token);
 
-        // Configure time
+        // Read time
         let time_low = config_space
             .load::<u32>(RegisterOffset::TimeLow as usize)
             .unwrap() as u64;
