@@ -31,7 +31,7 @@ impl Display for HartID {
 pub struct TP(u64);
 
 impl TP {
-    // Create zeroed abstraction of `tp` register.
+    /// Create zeroed abstraction of `tp` register.
     pub fn new(value: u64) -> Self {
         Self { 0: value }
     }
