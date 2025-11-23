@@ -13,6 +13,7 @@ use crate::sync::per_core::PerCore;
 use crate::trap::cause::Exception;
 use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
+use crate::trap::handler_interface::TrapContext;
 
 const NUM_EXCEPTION_HANDLERS: usize = 256;
 const NUM_INTERRUPT_HANDLERS: usize = 256;
@@ -215,7 +216,7 @@ pub trait TrapHandler: Sync {
     /// The `epilogue` implements the second half of the interrupt handling process which take care
     /// of all deferrable task. Thus, locking/blocking/waiting/... is allowed! While `prologue`
     /// must be implemented by every [`TrapHandler`], the `epilogue` is optional.
-    fn epilogue(&self, token: LevelEpilogue) {
+    fn epilogue(&self, state: &mut TrapContext, token: LevelEpilogue) {
         let _ = token;
         /* Nothing to do here */
     }

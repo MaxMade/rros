@@ -3,6 +3,7 @@
 use crate::drivers::driver::Driver;
 use crate::sync::level::{LevelEpilogue, LevelPrologue};
 use crate::trap::cause::Trap;
+use crate::trap::handler_interface::TrapContext;
 use crate::trap::handlers::TrapHandler;
 
 /// Panic handler for unexpected interupts.
@@ -35,7 +36,8 @@ impl TrapHandler for Panic {
         panic!("PANIC! Unexpected interrupt");
     }
 
-    fn epilogue(&self, token: LevelEpilogue) {
+    fn epilogue(&self, state: &mut TrapContext, token: LevelEpilogue) {
+        let _ = state;
         let _ = token;
         panic!("The panic driver must never request a epilogue");
     }

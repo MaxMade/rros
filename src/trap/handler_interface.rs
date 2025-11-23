@@ -1,5 +1,10 @@
 //! Rusty Trap Entry.
 
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering;
+
+use crate::config;
+use crate::kernel::cpu;
 use crate::kernel::cpu::Register;
 
 use crate::kernel::cpu::SCause;
@@ -8,11 +13,15 @@ use crate::kernel::cpu::SStatus;
 use crate::kernel::cpu::STVal;
 use crate::kernel::cpu::SEPC;
 use crate::sync::level::Level;
+use crate::sync::level::LevelEpilogue;
 use crate::sync::level::LevelPrologue;
 use crate::trap::cause::Interrupt;
 use crate::trap::cause::Trap;
 use crate::trap::handlers::TrapHandlers;
 use crate::trap::intc::INTERRUPT_CONTROLLER;
+
+static EPILOGUE_IN_PROGRESS: [AtomicBool; config::MAX_CPU_NUM] =
+    unsafe { core::mem::transmute([false; config::MAX_CPU_NUM]) };
 
 /// Context object passed by low-level (assembly) trap entry.
 pub struct TrapContext([u64; 36]);
@@ -416,14 +425,37 @@ extern "C" fn trap_handler(state: *mut TrapContext, user: usize) {
         Trap::Exception(_) => token,
     };
 
-    // Mark epilogue as pending (if necessary)
-    let token = match epilogue_required {
-        true => TrapHandlers::enqueue(trap, token),
-        false => token,
-    };
-
     // Execute pending epilogues
     if epilogue_required {
-        todo!();
+        // Enqueue interrupt
+        let token = TrapHandlers::enqueue(trap, token);
+
+        // Try to process epilogue if no epilogue was running on the current hart before
+        if EPILOGUE_IN_PROGRESS[cpu::current().raw()]
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            // Execute prologue
+            let mut prologue_token = Some(token);
+            while let (Some(trap), token) = TrapHandlers::dequeue(prologue_token.take().unwrap()) {
+                // Get corresponding handler
+                let (handler, token) = TrapHandlers::get(trap, token);
+                prologue_token = Some(token);
+
+                // Enable interrupts
+                unsafe { cpu::enable_interrupts() };
+
+                // Execute epilogue
+                let epilogue_token = unsafe { LevelEpilogue::create() };
+                handler.epilogue(state, epilogue_token);
+
+                // Disable interrupts
+                unsafe { cpu::disable_interrupts() };
+            }
+
+            // Mark exeuction of prologues as finished
+            assert!(EPILOGUE_IN_PROGRESS[cpu::current().raw()].load(Ordering::Relaxed) == true);
+            EPILOGUE_IN_PROGRESS[cpu::current().raw()].store(false, Ordering::Relaxed);
+        }
     }
 }
