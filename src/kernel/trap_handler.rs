@@ -1,3 +1,5 @@
+//! Rusty Trap Entry.
+
 use crate::kernel::cpu::Register;
 
 use crate::kernel::cpu::SCause;
@@ -7,6 +9,7 @@ use crate::kernel::cpu::STVal;
 use crate::kernel::cpu::SEPC;
 use crate::kernel::trap::Trap;
 
+/// Context object passed by low-level (assembly) trap entry.
 pub struct TrapContext([u64; 36]);
 
 impl TrapContext {
