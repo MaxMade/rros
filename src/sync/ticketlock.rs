@@ -8,6 +8,8 @@ use core::ops::DerefMut;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
+use crate::kernel::cpu;
+use crate::kernel::cpu::InterruptFlag;
 use crate::sync::level::Level;
 
 use crate::sync::level::LevelDriver;
@@ -195,3 +197,141 @@ pub type TicketlockScheduler<T> = Ticketlock<T, LevelScheduler, LevelMemory>;
 
 /// Specialized [`Ticketlock`] for locking `Memory` level.
 pub type TicketlockMemory<T> = Ticketlock<T, LevelMemory, LevelPrologue>;
+
+/// Interrupt-safe Ticketlock
+pub struct IRQTicketlock<T, UpperLevel: Level, LowerLevel: Level> {
+    lock: Ticketlock<T, UpperLevel, LowerLevel>,
+}
+
+impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, LowerLevel> {
+    /// Create a new `IRQTicketlock`
+    pub const fn new(value: T) -> Self {
+        Self {
+            lock: Ticketlock::new(value),
+        }
+    }
+
+    /// Disable interrupts and acquire lock (and saving `InterruptFlag`) while consume `UpperLevel` `token` (and producing
+    /// `LowerLevel` `token`).
+    #[inline]
+    pub fn lock(
+        &self,
+        token: UpperLevel,
+    ) -> (
+        IRQTicketlockGuard<'_, T, UpperLevel, LowerLevel>,
+        LowerLevel,
+    ) {
+        let flag = cpu::save_and_disable_interrupts();
+        let (guard, token) = self.lock.lock(token);
+
+        let guard = IRQTicketlockGuard { guard, flag };
+
+        return (guard, token);
+    }
+
+    // Disable interrupts and acquire lock during initialization without do anything at all.
+    #[inline]
+    pub fn init_lock(
+        &self,
+        token: LevelInitialization,
+    ) -> IRQTicketlockGuard<'_, T, LevelInitialization, LevelInitialization> {
+        let guard = self.lock.init_lock(token);
+        let guard = IRQTicketlockGuard {
+            guard,
+            flag: InterruptFlag::new(),
+        };
+
+        return guard;
+    }
+
+    #[inline]
+    pub fn try_lock(
+        &self,
+        token: UpperLevel,
+    ) -> Result<
+        (
+            IRQTicketlockGuard<'_, T, UpperLevel, LowerLevel>,
+            LowerLevel,
+        ),
+        UpperLevel,
+    > {
+        let flag = cpu::save_and_disable_interrupts();
+
+        let (guard, token) = match self.lock.try_lock(token) {
+            Ok((guard, token)) => (guard, token),
+            Err(token) => {
+                cpu::restore_interrupts(flag);
+                return Err(token);
+            }
+        };
+
+        let guard = IRQTicketlockGuard { guard, flag };
+
+        return Ok((guard, token));
+    }
+
+    /// Return `true` if the lock is currently held.
+    #[inline]
+    pub fn is_locked(&self) -> bool {
+        self.lock.is_locked()
+    }
+
+    /// Consume this [`TicketMutex`] and unwraps the underlying data.
+    pub fn into_inner(self) -> T {
+        self.lock.into_inner()
+    }
+}
+
+unsafe impl<T: Send, UpperLevel: Level, LowerLevel: Level> Sync
+    for IRQTicketlock<T, UpperLevel, LowerLevel>
+{
+}
+
+unsafe impl<T: Send, UpperLevel: Level, LowerLevel: Level> Send
+    for IRQTicketlock<T, UpperLevel, LowerLevel>
+{
+}
+
+/// Interrupt-safe ticketlock guard.
+pub struct IRQTicketlockGuard<'a, T: 'a, UpperLevel: Level, LowerLevel: Level> {
+    guard: TicketlockGuard<'a, T, UpperLevel, LowerLevel>,
+    flag: InterruptFlag,
+}
+
+impl<'a, T, UpperLevel: Level, LowerLevel: Level>
+    IRQTicketlockGuard<'a, T, UpperLevel, LowerLevel>
+{
+    /// Release lock and restoring the saved `InterruptFlag` while consume `LowerLevel` `token`
+    /// (and producing `UpperLevel` `token`).
+    #[inline]
+    pub fn unlock(self, token: LowerLevel) -> UpperLevel {
+        let token = self.guard.unlock(token);
+        cpu::restore_interrupts(self.flag);
+        return token;
+    }
+
+    /// Release lock and restoring the saved `InterruptFlag` while consume `LowerLevel` `token`
+    /// (and producing `UpperLevel` `token`) without doing anything at all
+    #[inline]
+    pub fn init_unlock(self) -> LevelInitialization {
+        self.guard.init_unlock()
+    }
+}
+
+impl<'a, T, UpperLevel: Level, LowerLevel: Level> Deref
+    for IRQTicketlockGuard<'a, T, UpperLevel, LowerLevel>
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.guard.deref()
+    }
+}
+
+impl<'a, T, UpperLevel: Level, LowerLevel: Level> DerefMut
+    for IRQTicketlockGuard<'a, T, UpperLevel, LowerLevel>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.guard.deref_mut()
+    }
+}
