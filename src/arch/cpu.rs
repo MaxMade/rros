@@ -4,7 +4,6 @@ use core::arch::asm;
 use core::fmt::Display;
 use core::ops::{Deref, DerefMut};
 
-use crate::arch::sie::SIE;
 use crate::kernel::address::Address;
 use crate::kernel::address::PhysicalAddress;
 use crate::mm::pte::PageTableEntry;
@@ -73,90 +72,6 @@ impl TP {
     /// Get raw inner value.
     pub const fn raw(self) -> u64 {
         self.0
-    }
-}
-
-/// Fine-grained Interrupt Pending Register
-///
-/// #See
-/// Section `4.1.3 Supervisor Interrupt Registers (sip and sie)` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug)]
-pub struct SIP(u64);
-
-impl SIP {
-    /// Create new, initialized `Supervisor Interrupt Pending` register.
-    pub fn new() -> Self {
-        let mut reg = SIP(0);
-        reg.read();
-        return reg;
-    }
-
-    /// Update value of `Supervisor Interrupt Pending` based on underlying  `sip` register.
-    pub fn read(&mut self) {
-        let mut x: u64;
-        unsafe {
-            asm!(
-                "csrr {x}, sip",
-                x = out(reg) x,
-            );
-        }
-        self.0 = x;
-    }
-
-    /// Update `SIP` register based on value of `Supervisor Interrupt Pending`.
-    pub fn write(&self) {
-        let x: u64 = self.0;
-        unsafe {
-            asm!(
-                "csrw sip, {x}",
-                x = in(reg) x,
-            );
-        }
-    }
-
-    /// Check if external interrupts are pending.
-    pub fn is_external_interrupt_pending(&self) -> bool {
-        self.0 & (1 << 9) != 0
-    }
-
-    /// Check if timer interrupts are pending.
-    pub fn is_timer_interrupt_pending(&self) -> bool {
-        self.0 & (1 << 5) != 0
-    }
-
-    /// Check if software interrupts are pending.
-    pub fn is_software_interrupt_pending(&self) -> bool {
-        self.0 & (1 << 1) != 0
-    }
-
-    /// Mark external interrupts as enabled.
-    pub fn clear_external_interrupt_pending(&mut self) {
-        self.0 &= !(1 << 9);
-        self.write();
-    }
-
-    /// Mark timer interrupts as enabled.
-    pub fn clear_timer_interrupt_pending(&mut self) {
-        self.0 &= !(1 << 5);
-        self.write();
-    }
-
-    /// Mark software interrupts as enabled.
-    pub fn clear_software_interrupt_pending(&mut self) {
-        self.0 &= !(1 << 1);
-        self.write();
-    }
-
-    /// Set all enable-bits for interrupt and write updated value back to register.
-    pub fn enable_all_interrupts(&mut self) {
-        self.0 = u64::MAX;
-        self.write();
-    }
-
-    /// Clear all enable-bits for interrupt and write updated value back to register.
-    pub fn disable_all_interrupts(&mut self) {
-        self.0 = 0u64;
-        self.write();
     }
 }
 

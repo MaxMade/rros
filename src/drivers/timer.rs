@@ -4,8 +4,8 @@ use crate::arch::cpu::CounterEnable;
 use crate::arch::cpu::Time;
 use crate::arch::cpu::TimeCompare;
 use crate::arch::cpu::CSR;
-use crate::arch::cpu::SIP;
 use crate::arch::sie::SIE;
+use crate::arch::sip::SIP;
 use crate::drivers::driver::Driver;
 use crate::drivers::driver::DriverError;
 use crate::drivers::rtc::RTC;
@@ -113,7 +113,10 @@ impl TrapHandler for Timer {
 
         // Clear timer pending bit
         let mut sip = SIP::new();
+        sip.read();
         sip.clear_timer_interrupt_pending();
+        sip.write();
+
         (true, token)
     }
 
