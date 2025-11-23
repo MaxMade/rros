@@ -1,2 +1,4 @@
 //! Memory Management APIs
-mod pte;
+
+pub mod error;
+pub mod pte;
