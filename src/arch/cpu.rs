@@ -75,31 +75,6 @@ impl TP {
     }
 }
 
-/// Abstraction of `sscratch` register.
-///
-/// #See
-/// `4.1.6 Supervisor Scratch Register (sscratch)` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SScratch(u64);
-
-impl SScratch {
-    /// Create `SScratch` from raw value.
-    pub const fn new(value: u64) -> Self {
-        Self { 0: value }
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl Display for SScratch {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#018x}", self.0)
-    }
-}
-
 /// Abstraction of `sepc` register.
 ///
 /// #See

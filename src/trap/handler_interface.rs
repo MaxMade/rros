@@ -5,9 +5,9 @@ use crate::arch::cpu::CSR;
 use crate::kernel::cpu;
 
 use crate::arch::cpu::SCause;
-use crate::arch::cpu::SScratch;
 use crate::arch::cpu::STVal;
 use crate::arch::cpu::SEPC;
+use crate::arch::sscratch::SScratch;
 use crate::arch::sstatus::SStatus;
 use crate::sync::epilogue;
 use crate::sync::level::Level;
