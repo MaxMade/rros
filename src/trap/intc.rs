@@ -44,6 +44,7 @@ struct PLIC {
 pub struct InterruptController(IRQTicketlock<PLIC>);
 
 /// Register offsets (in bytes) relative to start of configuration space.
+#[allow(unused)]
 #[derive(Debug)]
 enum RegisterOffset {
     /// Priority of the interrupt source.
