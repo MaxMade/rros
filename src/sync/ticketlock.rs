@@ -70,7 +70,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         return (guard, token);
     }
 
-    // Acquire lock during initialization.
+    /// Acquire lock during initialization.
     #[inline]
     pub fn init_lock(
         &self,
@@ -84,6 +84,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> Ticketlock<T, UpperLevel, LowerLev
         }
     }
 
+    /// Try to acquire lock while consume `UpperLevel` `token` (and producing `LowerLevel` `token`).
     #[inline]
     pub fn try_lock(
         &self,
@@ -229,7 +230,7 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
         return (guard, token);
     }
 
-    // Disable interrupts and acquire lock during initialization without do anything at all.
+    /// Disable interrupts and acquire lock during initialization without do anything at all.
     #[inline]
     pub fn init_lock(
         &self,
@@ -244,6 +245,8 @@ impl<T, UpperLevel: Level, LowerLevel: Level> IRQTicketlock<T, UpperLevel, Lower
         return guard;
     }
 
+    /// Try to disable interrupts and acquire lock (and saving `InterruptFlag`) while consume `UpperLevel` `token` (and producing
+    /// `LowerLevel` `token`).
     #[inline]
     pub fn try_lock(
         &self,
