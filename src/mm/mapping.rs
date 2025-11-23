@@ -2,7 +2,8 @@
 
 use core::ffi::c_void;
 
-use crate::arch::cpu::SATP;
+use crate::arch::cpu::CSR;
+use crate::arch::satp::SATP;
 use crate::kernel::address::{Address, PhysicalAddress, VirtualAddress};
 use crate::kernel::compiler;
 use crate::kernel::cpu;
@@ -100,7 +101,8 @@ unsafe impl Sync for VirtualMemorySystem {}
 impl VirtualMemorySystem {
     /// Apply current mapping by writing [`SATP`] register.
     pub fn load(&self) {
-        let mut satp = SATP::new();
+        let mut satp = SATP::new(0);
+        satp.read();
         satp.set_root_page_table(*self.root);
         satp.write();
     }

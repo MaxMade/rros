@@ -4,10 +4,6 @@ use core::arch::asm;
 use core::fmt::Display;
 use core::ops::{Deref, DerefMut};
 
-use crate::kernel::address::Address;
-use crate::kernel::address::PhysicalAddress;
-use crate::mm::pte::PageTableEntry;
-
 /// Get default page size (`4096` bytes)
 pub const fn page_size() -> usize {
     4096
@@ -72,70 +68,6 @@ impl TP {
     /// Get raw inner value.
     pub const fn raw(self) -> u64 {
         self.0
-    }
-}
-
-/// Abstraction of `SATP` register.
-///
-/// #See
-/// `4.1.11 Supervisor Address Translation and Protection (satp) Register` of `Volume II: RISC-V Privileged Architectures`
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SATP(u64);
-
-impl SATP {
-    /// Create `SATP` from raw value.
-    pub fn new() -> Self {
-        let mut satp = Self(0);
-        satp.read();
-        satp.0 |= 0x8 << 60;
-        satp
-    }
-
-    /// Get raw inner value.
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-
-    /// Load current value from `satp` register.
-    pub fn read(&mut self) {
-        let mut x: u64;
-        unsafe {
-            asm!(
-                "csrr {x}, satp",
-                x = out(reg) x,
-            );
-        }
-        self.0 = x;
-    }
-
-    /// Store current value to `sajtp` register.
-    pub fn write(&self) {
-        let x: u64 = self.0;
-        unsafe {
-            asm!(
-                "csrw satp, {x}",
-                x = in(reg) x,
-            );
-        }
-    }
-
-    /// Get address of root page table
-    pub const fn get_root_page_table(&self) -> PhysicalAddress<PageTableEntry> {
-        let ppn = (self.0 & 0xFFF_FFFF_FFFF) as u64;
-        PhysicalAddress::new((ppn * page_size() as u64) as *mut _)
-    }
-
-    /// Set address of root page table
-    pub fn set_root_page_table(&mut self, phys_addr: PhysicalAddress<PageTableEntry>) {
-        let ppn = phys_addr.addr() / page_size();
-        self.0 &= !0xFFF_FFFF_FFFF;
-        self.0 |= ppn as u64;
-    }
-}
-
-impl Display for SATP {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#010x}", self.0)
     }
 }
 
