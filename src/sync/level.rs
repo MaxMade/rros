@@ -24,6 +24,10 @@
 //! ┌────────────────┐
 //! │ LevelPrologue  │
 //! └────────────────┘
+//!
+//! ┌────────────────┐
+//! │ Initialization │
+//! └────────────────┘
 //! ```
 
 use core::marker::PhantomData;
@@ -49,6 +53,27 @@ where
     fn leave(self) -> Self::HigherLevel {
         assert!(Self::level() < Self::HigherLevel::level());
         unsafe { Self::HigherLevel::create() }
+    }
+}
+
+/// Level Initialization
+pub struct LevelInitialization {
+    phantom: PhantomData<Self>,
+}
+
+impl Level for LevelInitialization {
+    type HigherLevel = LevelInvalid;
+
+    type LowerLevel = LevelInvalid;
+
+    unsafe fn create() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+
+    fn level() -> usize {
+        panic!();
     }
 }
 
