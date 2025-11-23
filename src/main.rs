@@ -43,7 +43,7 @@ fn panic(info: &PanicInfo) -> ! {
 
 /// Kernel initialization routine entered by boot processor
 #[no_mangle]
-pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
+pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8, dtb_size: u32) -> ! {
     let hart_id = kernel::cpu::HartID::new(hart_id);
 
     // Create initialization token
@@ -52,11 +52,24 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     // operating system itself. Thus, completely safe to use within `kernel_init`.
     let level_initialization = unsafe { sync::level::LevelInitialization::create() };
 
+    // Initialize page frame allocator
+    let level_initialization =
+        mm::page_allocator::PageFrameAllocator::initialize(level_initialization);
+
+    // Initalize fine-grained kernel mapping
+    let level_initialization = mm::mapping::VirtualMemorySystem::initalize(level_initialization);
+    mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();
+
+    // Load mapping
+    mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM.as_ref().load();
+
+    // Map device tree
+
     // Initialize device tree
     // # Safety
     // The provided pointer to the device tree blob is valid and thus safe to use.
     let (device_tree, level_initialization) =
-        unsafe { DeviceTree::initialize(dtb_ptr, level_initialization) };
+        unsafe { DeviceTree::initialize(dtb_ptr, dtb_size, level_initialization) };
     assert!(device_tree.get_cpu_count() < config::MAX_CPU_NUM);
 
     // Check availability of OpenSBI by querying specification version
@@ -83,13 +96,6 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     let logical_id = kernel::cpu_map::lookup_logical_id(hart_id);
     let tp = kernel::cpu::TP::new(u64::try_from(logical_id.raw()).unwrap());
     tp.write();
-
-    // Initialize page frame allocator
-    let level_initialization =
-        mm::page_allocator::PageFrameAllocator::initialize(level_initialization);
-
-    // Initalize fine-grained kernel mapping
-    let level_initialization = mm::mapping::VirtualMemorySystem::initalize(level_initialization);
 
     // Initialize trap vector
     let level_initialization = trap::handlers::load_trap_vector(level_initialization);
@@ -123,12 +129,6 @@ pub extern "C" fn kernel_init(hart_id: u64, dtb_ptr: *const u8) -> ! {
     let level_initialization = match kernel::printer::initialize(level_initialization) {
         Ok(token) => token,
         Err((error, _)) => panic!("Unable to initialize global printer: {}!", error),
-    };
-
-    unsafe {
-        mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM
-            .as_ref()
-            .load(sync::level::LevelMapping::create())
     };
 
     printk!(kernel::printer::LogLevel::Info, "Hello World!\n");

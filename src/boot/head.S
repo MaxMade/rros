@@ -131,6 +131,22 @@ _start:
 	// Enable 39-bit paging
 	csrw satp, t0
 
+	// Load device tree size to register a2
+	lw a2, 4(a1)
+	srliw t0, a2, 8
+	lui t1, 16
+	addiw t1, t1, -256
+	and t0, t0, t1
+	srliw t1, a2, 24
+	or t0, t0, t1
+	slli t1, a2, 8
+	lui a3, 4080
+	and t1, t1, a3
+	slliw a2, a2, 24
+	or a2, a2, t1
+	or a2, a2, t0
+	add a2, a2, 0x28
+
 	// Jump to Rust World
 	la t0, kernel_init
 

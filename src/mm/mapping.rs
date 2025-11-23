@@ -99,11 +99,10 @@ unsafe impl Sync for VirtualMemorySystem {}
 
 impl VirtualMemorySystem {
     /// Apply current mapping by writing [`SATP`] register.
-    pub fn load(&self, token: LevelMapping) -> LevelMapping {
+    pub fn load(&self) {
         let mut satp = SATP::new();
         satp.set_root_page_table(*self.root);
         satp.write();
-        token
     }
 
     /// Create initial [`VirtualMemorySystem`] for kernel-space only.

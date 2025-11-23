@@ -1,6 +1,10 @@
 //! Abstraction of a device tree.
 
+use core::ffi::c_void;
+
 use crate::boot::device_tree::parser::Parser;
+use crate::kernel::address::{Address, PhysicalAddress};
+use crate::mm::mapping::KERNEL_VIRTUAL_MEMORY_SYSTEM;
 use crate::sync::init_cell::InitCell;
 use crate::sync::level::LevelInitialization;
 
@@ -27,10 +31,21 @@ impl DeviceTree {
     /// considered safe.
     pub unsafe fn initialize(
         dtb_ptr: *const u8,
+        dtb_size: u32,
         token: LevelInitialization,
     ) -> (&'static Self, LevelInitialization) {
+        // Map device tree
+        let (virt_address, token) = KERNEL_VIRTUAL_MEMORY_SYSTEM
+            .as_ref()
+            .early_create_dev(
+                PhysicalAddress::new(dtb_ptr as *mut c_void),
+                dtb_size as usize,
+                token,
+            )
+            .unwrap();
+
         // Parse device tree blob
-        let parser = match Parser::new(dtb_ptr) {
+        let parser = match Parser::new(virt_address.as_ptr() as *const u8) {
             Ok(parser) => parser,
             Err(err) => {
                 panic!("Unable to process device tree blob: {}", err);
