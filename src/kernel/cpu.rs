@@ -6,6 +6,16 @@ use core::ops::{Deref, DerefMut};
 
 use crate::kernel::cpu_map::LogicalCPUID;
 
+/// Let the current hart enter a low-energy mode which can not be left!
+pub fn die() -> ! {
+    disable_interrupts();
+    unsafe {
+        loop {
+            asm!("wfi");
+        }
+    }
+}
+
 /// Abstraction of hard ID.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HartID(u64);

@@ -19,8 +19,9 @@ pub mod sync;
 pub mod trap;
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    printk!(kernel::printer::LogLevel::Emergency, "Panic: {}!", info);
+    kernel::cpu::die();
 }
 
 /// Kernel initialization routine entered by boot processor
