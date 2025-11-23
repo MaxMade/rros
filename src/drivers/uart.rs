@@ -243,6 +243,7 @@ impl UARTNS16550a {
     }
 
     /// Get `Reveive Holding Register`.
+    #[allow(unused)]
     fn get_rhr(&self) -> u8 {
         self.config_space
             .load(RegisterOffset::RHR as usize)
@@ -250,6 +251,7 @@ impl UARTNS16550a {
     }
 
     /// Set `Reveive Holding Register`.
+    #[allow(unused)]
     fn set_rhr(&mut self, value: u8) {
         self.config_space
             .store(RegisterOffset::RHR as usize, value)
@@ -360,6 +362,7 @@ impl UARTNS16550a {
     }
 
     /// Enable `Transmit Holding Register Interrupt`.
+    #[allow(unused)]
     fn enbale_thri(&mut self) {
         let mut value: u8 = self
             .config_space
@@ -384,6 +387,7 @@ impl UARTNS16550a {
     }
 
     /// Enable `Receive Line Status Interrupt`.
+    #[allow(unused)]
     fn enbale_rlsi(&mut self) {
         let mut value: u8 = self
             .config_space
@@ -408,6 +412,7 @@ impl UARTNS16550a {
     }
 
     /// Enable `Modem Status Interrupt`.
+    #[allow(unused)]
     fn enbale_msi(&mut self) {
         let mut value: u8 = self
             .config_space
