@@ -1,0 +1,30 @@
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/rust/tags/
+image: "rust:latest"
+
+# Use cargo to build the project
+build:cargo:
+  before_script:
+    - apt-get update -yqq
+    - apt-get install -yqq gcc-riscv64-unknown-elf
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo build
+
+# Use cargo to build the project (release version)
+build:cargo-release:
+  before_script:
+    - apt-get update -yqq
+    - apt-get install -yqq gcc-riscv64-unknown-elf
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo build --release
+
+# Use cargo to build the documentation
+doc:cargo:
+  before_script:
+    - apt-get update -yqq
+    - apt-get install -yqq gcc-riscv64-unknown-elf
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - RUSTDOCFLAGS="-D warnings" cargo doc
