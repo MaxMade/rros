@@ -841,3 +841,36 @@ impl Display for Time {
         write!(f, "{:#018x}", self.0)
     }
 }
+
+/// Retired-Instruction-Counter Register
+///
+/// #See
+/// Section `4.1.4 Supervisor Timers and Performance Counters` of `Volume II: RISC-V Privileged Architectures`
+#[derive(Debug)]
+pub struct InstructionRetiredCounter(u64);
+
+impl InstructionRetiredCounter {
+    /// Create new, initialized [`InstructionRetiredCounter`].
+    pub fn new() -> Self {
+        let mut reg = InstructionRetiredCounter(0);
+        reg.read();
+        return reg;
+    }
+
+    /// Update value of [`InstructionRetiredCounter`] Register based on underlying `instret` register.
+    pub fn read(&mut self) {
+        let mut x: u64;
+        unsafe {
+            asm!(
+                "csrr {x}, instret",
+                x = out(reg) x,
+            );
+        }
+        self.0 = x;
+    }
+
+    /// Get raw inner value.
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+}
